@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
 import android.hardware.camera2.CameraCharacteristics;
+import android.net.wifi.WifiManager;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
@@ -23,6 +24,7 @@ import androidx.annotation.Nullable;
 import androidx.camera.camera2.interop.Camera2CameraInfo;
 import androidx.camera.core.Camera;
 import androidx.camera.core.CameraInfo;
+import androidx.camera.core.CameraState;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
@@ -33,6 +35,8 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LifecycleService;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.Observer;
 
 import com.borislav007.bzview.core.CameraOption;
 import com.borislav007.bzview.core.CameraServer;
@@ -89,6 +93,8 @@ public class StreamService extends LifecycleService {
     private ProcessCameraProvider provider;
     private Camera camera;
     private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock wifiLock;
+    private LiveData<CameraState> cameraState;
     private String token;
     private long lastFrameMs;
 
@@ -253,6 +259,7 @@ public class StreamService extends LifecycleService {
         streaming = true;
         host = NetUtil.localIpv4();
         acquireWakeLock();
+        acquireWifiLock();
         analysisExecutor = Executors.newSingleThreadExecutor();
         updateNotification();
         bindCamera();
@@ -274,11 +281,17 @@ public class StreamService extends LifecycleService {
         }
         camera = null;
         activeId = null;
+        main.removeCallbacks(rebindRunnable);
+        if (cameraState != null) {
+            cameraState.removeObserver(cameraStateObserver);
+            cameraState = null;
+        }
         if (analysisExecutor != null) {
             analysisExecutor.shutdownNow();
             analysisExecutor = null;
         }
         releaseWakeLock();
+        releaseWifiLock();
         viewerCount = 0;
         torchOn = false;
         hasTorch = false;
@@ -386,12 +399,31 @@ public class StreamService extends LifecycleService {
             hasTorch = info.hasFlashUnit();
             torchOn = false;
             error = null;
+            // If Android drops the camera (e.g. after the screen locks), reopen it.
+            if (cameraState != null) {
+                cameraState.removeObserver(cameraStateObserver);
+            }
+            cameraState = info.getCameraState();
+            cameraState.observe(this, cameraStateObserver);
             notifyStatus();
         } catch (Exception e) {
             activeId = null;
             setError("Cannot start camera: " + e.getMessage());
         }
     }
+
+    private final Runnable rebindRunnable = () -> {
+        if (streaming && provider != null) {
+            bindUseCases();
+        }
+    };
+
+    private final Observer<CameraState> cameraStateObserver = state -> {
+        if (streaming && state != null && state.getError() != null) {
+            main.removeCallbacks(rebindRunnable);
+            main.postDelayed(rebindRunnable, 2000);
+        }
+    };
 
     private void analyze(ImageProxy image) {
         try {
@@ -491,6 +523,25 @@ public class StreamService extends LifecycleService {
                 wakeLock.release();
             }
             wakeLock = null;
+        }
+    }
+
+    /** Keeps Wi-Fi fully awake, so viewers keep receiving video with the screen off. */
+    private void acquireWifiLock() {
+        WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        if (wm != null && wifiLock == null) {
+            wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "bzview:stream");
+            wifiLock.setReferenceCounted(false);
+            wifiLock.acquire();
+        }
+    }
+
+    private void releaseWifiLock() {
+        if (wifiLock != null) {
+            if (wifiLock.isHeld()) {
+                wifiLock.release();
+            }
+            wifiLock = null;
         }
     }
 

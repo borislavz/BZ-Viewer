@@ -1,6 +1,7 @@
 package com.borislav007.bzview.camera;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -8,10 +9,13 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -140,7 +144,27 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
     }
 
     private void startStreaming() {
+        requestBatteryExemptionOnce();
         ContextCompat.startForegroundService(this, new Intent(this, StreamService.class));
+    }
+
+    /**
+     * Some phones stop background apps when the screen is locked, even foreground services.
+     * Asking to be exempt from battery optimization keeps streaming going. Asked only once.
+     */
+    private void requestBatteryExemptionOnce() {
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())
+                || Config.askedBatteryExemption(this)) {
+            return;
+        }
+        Config.markAskedBatteryExemption(this);
+        try {
+            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (ActivityNotFoundException ignored) {
+            // Device has no such settings screen; streaming still works in most cases.
+        }
     }
 
     private void showCameraPicker() {

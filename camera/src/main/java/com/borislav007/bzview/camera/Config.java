@@ -11,6 +11,15 @@ final class Config {
     private static final String PREFS = "bzview_camera";
     private static final String KEY_TOKEN = "token";
     private static final String KEY_CAMERA = "camera_id";
+    private static final String KEY_ASKED_BATTERY = "asked_battery_exemption";
+
+    static synchronized boolean askedBatteryExemption(Context context) {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ASKED_BATTERY, false);
+    }
+
+    static synchronized void markAskedBatteryExemption(Context context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ASKED_BATTERY, true).apply();
+    }
 
     private Config() {
     }
