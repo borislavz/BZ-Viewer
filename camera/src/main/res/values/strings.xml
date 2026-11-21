@@ -4,6 +4,7 @@
     <string name="stop_streaming">Stop streaming</string>
     <string name="stop">Stop</string>
     <string name="camera_button">Camera…</string>
+    <string name="exit">Exit</string>
     <string name="choose_camera">Choose camera</string>
     <string name="preview">Camera preview</string>
     <string name="pairing_qr">Pairing QR code</string>

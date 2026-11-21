@@ -98,6 +98,7 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         toggleButton.setOnClickListener(v -> onToggleClicked());
         cameraButton = findViewById(R.id.cameraButton);
         cameraButton.setOnClickListener(v -> showCameraPicker());
+        findViewById(R.id.exitButton).setOnClickListener(v -> exitApp());
         refresh();
     }
 
@@ -141,6 +142,17 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         } else {
             permissionLauncher.launch(missing.toArray(new String[0]));
         }
+    }
+
+    /** Stops streaming, removes the service and closes the app. */
+    private void exitApp() {
+        StreamService s = service;
+        if (s != null) {
+            s.stopStreamingAndSelf();
+        } else {
+            stopService(new Intent(this, StreamService.class));
+        }
+        finishAndRemoveTask();
     }
 
     private void startStreaming() {

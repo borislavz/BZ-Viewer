@@ -89,6 +89,11 @@
                 android:id="@+id/fullscreenButton"
                 style="@style/ControlButton"
                 android:text="@string/fullscreen" />
+
+            <Button
+                android:id="@+id/exitButton"
+                style="@style/ControlButton"
+                android:text="@string/exit" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

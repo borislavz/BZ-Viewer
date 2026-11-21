@@ -116,6 +116,7 @@ public class ViewerActivity extends AppCompatActivity {
         exitFullscreenButton = findViewById(R.id.exitFullscreenButton);
         fullscreenButton.setOnClickListener(v -> setFullscreen(true));
         exitFullscreenButton.setOnClickListener(v -> setFullscreen(false));
+        findViewById(R.id.exitButton).setOnClickListener(v -> finishAndRemoveTask());
         brightButton = findViewById(R.id.brightButton);
         brightButton.setOnClickListener(v -> setBright(!bright));
         setBright(getPreferences().getBoolean(KEY_BRIGHT, false));
