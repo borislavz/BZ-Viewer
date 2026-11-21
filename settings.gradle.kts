@@ -19,4 +19,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "BZ View"
-include(":app")
+include(":core")
+include(":camera")
+include(":viewer")

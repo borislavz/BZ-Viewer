@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <ImageView
+        android:id="@+id/videoView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/live_video"
+        android:scaleType="fitCenter" />
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="8dp"
+        android:background="#99000000"
+        android:padding="8dp"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="#99000000"
+        android:orientation="horizontal"
+        android:padding="4dp">
+
+        <Button
+            android:id="@+id/scanButton"
+            style="@style/ControlButton"
+            android:text="@string/scan_qr" />
+
+        <Button
+            android:id="@+id/addressButton"
+            style="@style/ControlButton"
+            android:text="@string/address" />
+
+        <Button
+            android:id="@+id/flipButton"
+            style="@style/ControlButton"
+            android:text="@string/flip_camera" />
+
+        <Button
+            android:id="@+id/torchButton"
+            style="@style/ControlButton"
+            android:text="@string/torch_on" />
+
+        <Button
+            android:id="@+id/disconnectButton"
+            style="@style/ControlButton"
+            android:text="@string/forget" />
+    </LinearLayout>
+</FrameLayout>

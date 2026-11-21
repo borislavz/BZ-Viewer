@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">BZ View Viewer</string>
+    <string name="live_video">Live video</string>
+    <string name="scan_qr">Scan QR</string>
+    <string name="address">Address</string>
+    <string name="flip_camera">Flip</string>
+    <string name="torch_on">Torch on</string>
+    <string name="torch_off">Torch off</string>
+    <string name="forget">Forget</string>
+    <string name="not_paired">Not paired. Tap Scan QR and scan the code shown by BZ View Camera on your other phone.</string>
+    <string name="connecting">Connecting…</string>
+    <string name="connecting_to">Connecting to %1$s…</string>
+    <string name="connected_to">Connected to %1$s</string>
+    <string name="reconnecting">%1$s. Retrying…</string>
+    <string name="enter_address">Camera address</string>
+    <string name="address_hint">bzview://192.168.1.20:8765/abcd1234</string>
+    <string name="connect">Connect</string>
+    <string name="invalid_address">That is not a valid BZ View address.</string>
+    <string name="command_failed">Could not reach the camera.</string>
+    <string name="scan_hint">Point the camera at the QR code shown on the BZ View Camera phone.</string>
+    <string name="scan_failed">Could not start the camera.</string>
+    <string name="camera_permission_needed">Camera permission is needed to scan the QR code. You can still type the address.</string>
+</resources>

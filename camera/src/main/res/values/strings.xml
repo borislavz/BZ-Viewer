@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">BZ View Camera</string>
+    <string name="start_streaming">Start streaming</string>
+    <string name="stop_streaming">Stop streaming</string>
+    <string name="stop">Stop</string>
+    <string name="preview">Camera preview</string>
+    <string name="pairing_qr">Pairing QR code</string>
+    <string name="idle_hint">Tap Start streaming, then scan the QR code with BZ View Viewer on your other phone. Both phones must be on the same Wi-Fi network.</string>
+    <string name="scan_hint">Scan this QR code with BZ View Viewer, or type the address below into it.</string>
+    <string name="no_network">No Wi-Fi address found. Connect this phone to Wi-Fi, then reopen this screen.</string>
+    <string name="camera_permission_needed">Camera permission is required to stream.</string>
+    <string name="viewers_count">Viewers connected: %1$d</string>
+    <string name="notification_channel">Streaming</string>
+    <string name="notification_title">BZ View Camera is streaming</string>
+    <string name="notification_text">Viewers connected: %1$d</string>
+</resources>
