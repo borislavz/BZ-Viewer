@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
+import android.hardware.camera2.CameraCharacteristics;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
@@ -19,7 +20,9 @@ import android.os.SystemClock;
 import android.util.Size;
 
 import androidx.annotation.Nullable;
+import androidx.camera.camera2.interop.Camera2CameraInfo;
 import androidx.camera.core.Camera;
+import androidx.camera.core.CameraInfo;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
@@ -31,6 +34,7 @@ import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LifecycleService;
 
+import com.borislav007.bzview.core.CameraOption;
 import com.borislav007.bzview.core.CameraServer;
 import com.borislav007.bzview.core.NetUtil;
 import com.borislav007.bzview.core.PairingInfo;
@@ -39,7 +43,11 @@ import com.google.common.util.concurrent.ListenableFuture;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -74,6 +82,7 @@ public class StreamService extends LifecycleService {
     private final IBinder binder = new LocalBinder();
     private final Set<Listener> listeners = new CopyOnWriteArraySet<>();
     private final Handler main = new Handler(Looper.getMainLooper());
+    private final List<CameraOption> cameras = new CopyOnWriteArrayList<>();
 
     private ExecutorService analysisExecutor;
     private CameraServer server;
@@ -87,15 +96,19 @@ public class StreamService extends LifecycleService {
     private volatile int viewerCount;
     private volatile String error;
     private volatile String host;
-    private volatile boolean useFront;
     private volatile boolean torchOn;
     private volatile boolean hasTorch;
+    /** Camera the user chose, or null for the default back camera. */
+    private volatile String selectedId;
+    /** Camera that is actually in use right now. */
+    private volatile String activeId;
 
     // ---------------------------------------------------------------- lifecycle
 
     @Override
     public void onCreate() {
         super.onCreate();
+        selectedId = Config.selectedCamera(this);
         createChannel();
     }
 
@@ -144,6 +157,30 @@ public class StreamService extends LifecycleService {
     @Nullable
     public String getError() {
         return error;
+    }
+
+    /** Every camera the phone offers, in the order CameraX reports them. */
+    public List<CameraOption> getCameraOptions() {
+        return new ArrayList<>(cameras);
+    }
+
+    /** Id of the camera in use, or null when not streaming. */
+    @Nullable
+    public String getActiveCameraId() {
+        return activeId;
+    }
+
+    /** Switches to another camera. Takes effect immediately while streaming. */
+    public void selectCamera(String id) {
+        if (id == null || !hasCamera(id)) {
+            return;
+        }
+        selectedId = id;
+        Config.setSelectedCamera(this, id);
+        if (streaming && provider != null) {
+            bindUseCases();
+        }
+        notifyStatus();
     }
 
     /** Address viewers must enter or scan, or null when there is no network address. */
@@ -236,6 +273,7 @@ public class StreamService extends LifecycleService {
             }
         }
         camera = null;
+        activeId = null;
         if (analysisExecutor != null) {
             analysisExecutor.shutdownNow();
             analysisExecutor = null;
@@ -261,15 +299,78 @@ public class StreamService extends LifecycleService {
                 setError("Camera unavailable: " + e.getMessage());
                 return;
             }
+            loadCameras();
             if (streaming) {
                 bindUseCases();
             }
         }, ContextCompat.getMainExecutor(this));
     }
 
+    /** Reads the list of cameras from CameraX. Must run on the main thread. */
+    private void loadCameras() {
+        cameras.clear();
+        if (provider == null) {
+            return;
+        }
+        for (CameraInfo info : provider.getAvailableCameraInfos()) {
+            Camera2CameraInfo c2 = Camera2CameraInfo.from(info);
+            String id = c2.getCameraId();
+            Integer facing = c2.getCameraCharacteristic(CameraCharacteristics.LENS_FACING);
+            float[] focal = c2.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+            cameras.add(new CameraOption(id, labelFor(id, facing, focal)));
+        }
+    }
+
+    private static String labelFor(String id, Integer facing, float[] focal) {
+        String side;
+        if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+            side = "Front";
+        } else if (facing != null && facing == CameraCharacteristics.LENS_FACING_EXTERNAL) {
+            side = "External";
+        } else {
+            side = "Back";
+        }
+        StringBuilder sb = new StringBuilder(side);
+        if (focal != null && focal.length > 0) {
+            sb.append(String.format(Locale.US, ", %.1f mm", focal[0]));
+        }
+        sb.append(" (id ").append(id).append(')');
+        return sb.toString();
+    }
+
+    private boolean hasCamera(String id) {
+        for (CameraOption c : cameras) {
+            if (c.id.equals(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static CameraSelector selectorFor(@Nullable String id) {
+        if (id == null) {
+            return CameraSelector.DEFAULT_BACK_CAMERA;
+        }
+        return new CameraSelector.Builder()
+                .addCameraFilter(infos -> {
+                    List<CameraInfo> matches = new ArrayList<>();
+                    for (CameraInfo info : infos) {
+                        if (id.equals(Camera2CameraInfo.from(info).getCameraId())) {
+                            matches.add(info);
+                        }
+                    }
+                    return matches;
+                })
+                .build();
+    }
+
     private void bindUseCases() {
         try {
             provider.unbindAll();
+            String wanted = selectedId;
+            if (wanted != null && !hasCamera(wanted)) {
+                wanted = null; // saved camera is gone (e.g. unplugged); fall back to default
+            }
             ImageAnalysis analysis = new ImageAnalysis.Builder()
                     .setResolutionSelector(new ResolutionSelector.Builder()
                             .setResolutionStrategy(new ResolutionStrategy(new Size(1280, 720),
@@ -279,15 +380,15 @@ public class StreamService extends LifecycleService {
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                     .build();
             analysis.setAnalyzer(analysisExecutor, this::analyze);
-            CameraSelector selector = useFront
-                    ? CameraSelector.DEFAULT_FRONT_CAMERA
-                    : CameraSelector.DEFAULT_BACK_CAMERA;
-            camera = provider.bindToLifecycle(this, selector, analysis);
-            hasTorch = camera.getCameraInfo().hasFlashUnit();
+            camera = provider.bindToLifecycle(this, selectorFor(wanted), analysis);
+            CameraInfo info = camera.getCameraInfo();
+            activeId = Camera2CameraInfo.from(info).getCameraId();
+            hasTorch = info.hasFlashUnit();
             torchOn = false;
             error = null;
             notifyStatus();
         } catch (Exception e) {
+            activeId = null;
             setError("Cannot start camera: " + e.getMessage());
         }
     }
@@ -333,13 +434,8 @@ public class StreamService extends LifecycleService {
     // ---------------------------------------------------------------- remote commands (server thread)
 
     private String handleCommand(String name, String arg) {
-        if (Protocol.CMD_SWITCH_CAMERA.equals(name)) {
-            main.post(() -> {
-                useFront = !useFront;
-                if (streaming && provider != null) {
-                    bindUseCases();
-                }
-            });
+        if (Protocol.CMD_SELECT_CAMERA.equals(name)) {
+            main.post(() -> selectCamera(arg));
         } else if (Protocol.CMD_TORCH.equals(name)) {
             main.post(() -> setTorch(arg));
         }
@@ -357,10 +453,15 @@ public class StreamService extends LifecycleService {
     }
 
     private String statusText() {
-        return "front=" + (useFront ? 1 : 0)
-                + "\ntorch=" + (torchOn ? 1 : 0)
-                + "\nhasTorch=" + (hasTorch ? 1 : 0)
-                + "\nviewers=" + viewerCount;
+        StringBuilder sb = new StringBuilder();
+        sb.append("torch=").append(torchOn ? 1 : 0)
+                .append("\nhasTorch=").append(hasTorch ? 1 : 0)
+                .append("\nviewers=").append(viewerCount)
+                .append("\ncurrent=").append(activeId == null ? "" : activeId);
+        for (CameraOption c : cameras) {
+            sb.append("\ncamera=").append(c.id).append('|').append(c.label);
+        }
+        return sb.toString();
     }
 
     // ---------------------------------------------------------------- helpers

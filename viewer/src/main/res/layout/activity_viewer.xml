@@ -42,9 +42,9 @@
             android:text="@string/address" />
 
         <Button
-            android:id="@+id/flipButton"
+            android:id="@+id/cameraButton"
             style="@style/ControlButton"
-            android:text="@string/flip_camera" />
+            android:text="@string/camera_button" />
 
         <Button
             android:id="@+id/torchButton"

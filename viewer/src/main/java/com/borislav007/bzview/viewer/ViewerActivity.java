@@ -25,11 +25,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.borislav007.bzview.core.CameraOption;
 import com.borislav007.bzview.core.MjpegClient;
 import com.borislav007.bzview.core.PairingInfo;
 import com.borislav007.bzview.core.Protocol;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Viewer phone screen: shows the live video of a paired camera phone. */
@@ -44,7 +46,7 @@ public class ViewerActivity extends AppCompatActivity {
 
     private ImageView videoView;
     private TextView statusText;
-    private Button flipButton;
+    private Button cameraButton;
     private Button torchButton;
     private Button disconnectButton;
 
@@ -79,14 +81,14 @@ public class ViewerActivity extends AppCompatActivity {
 
         videoView = findViewById(R.id.videoView);
         statusText = findViewById(R.id.statusText);
-        flipButton = findViewById(R.id.flipButton);
+        cameraButton = findViewById(R.id.cameraButton);
         torchButton = findViewById(R.id.torchButton);
         disconnectButton = findViewById(R.id.disconnectButton);
 
         findViewById(R.id.scanButton).setOnClickListener(v ->
                 scanLauncher.launch(new Intent(this, ScanActivity.class)));
         findViewById(R.id.addressButton).setOnClickListener(v -> showAddressDialog());
-        flipButton.setOnClickListener(v -> runCommand(Protocol.CMD_SWITCH_CAMERA, null));
+        cameraButton.setOnClickListener(v -> showCameraPicker());
         torchButton.setOnClickListener(v -> runCommand(Protocol.CMD_TORCH, Protocol.ARG_TOGGLE));
         disconnectButton.setOnClickListener(v -> forgetCamera());
 
@@ -228,6 +230,47 @@ public class ViewerActivity extends AppCompatActivity {
         fetchStatus(900);
     }
 
+    /** Asks the camera phone for its camera list, then shows a picker. */
+    private void showCameraPicker() {
+        final PairingInfo target = info;
+        if (target == null) {
+            return;
+        }
+        new Thread(() -> {
+            try {
+                String status = MjpegClient.sendCommand(target, Protocol.CMD_STATUS, null);
+                List<CameraOption> options = CameraOption.parseAll(status);
+                String current = CameraOption.parseCurrent(status);
+                runOnUiThread(() -> presentCameraPicker(target, options, current));
+            } catch (IOException e) {
+                runOnUiThread(() -> Toast.makeText(this, R.string.command_failed, Toast.LENGTH_SHORT).show());
+            }
+        }, "bzview-cameras").start();
+    }
+
+    private void presentCameraPicker(PairingInfo target, List<CameraOption> options, String current) {
+        if (options.isEmpty()) {
+            Toast.makeText(this, R.string.no_cameras, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] labels = new String[options.size()];
+        int checked = -1;
+        for (int i = 0; i < options.size(); i++) {
+            labels[i] = options.get(i).label;
+            if (options.get(i).id.equals(current)) {
+                checked = i;
+            }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.choose_camera)
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    dialog.dismiss();
+                    runCommand(Protocol.CMD_SELECT_CAMERA, options.get(which).id);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     private void fetchStatus(long delayMs) {
         final PairingInfo target = info;
         if (target == null) {
@@ -264,7 +307,7 @@ public class ViewerActivity extends AppCompatActivity {
     // ---------------------------------------------------------------- UI helpers
 
     private void updateButtons() {
-        flipButton.setEnabled(connected);
+        cameraButton.setEnabled(connected);
         torchButton.setEnabled(connected && hasTorch);
         torchButton.setText(torchOn ? R.string.torch_off : R.string.torch_on);
         disconnectButton.setEnabled(info != null);

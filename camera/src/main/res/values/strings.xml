@@ -3,6 +3,8 @@
     <string name="start_streaming">Start streaming</string>
     <string name="stop_streaming">Stop streaming</string>
     <string name="stop">Stop</string>
+    <string name="camera_button">Camera…</string>
+    <string name="choose_camera">Choose camera</string>
     <string name="preview">Camera preview</string>
     <string name="pairing_qr">Pairing QR code</string>
     <string name="idle_hint">Tap Start streaming, then scan the QR code with BZ View Viewer on your other phone. Both phones must be on the same Wi-Fi network.</string>

@@ -19,7 +19,8 @@ public final class Protocol {
     public static final String PATH_COMMAND = "/cmd";
 
     public static final String CMD_STATUS = "status";
-    public static final String CMD_SWITCH_CAMERA = "switch";
+    /** Select a camera by id: /cmd?...&name=select&arg=ID */
+    public static final String CMD_SELECT_CAMERA = "select";
     public static final String CMD_TORCH = "torch";
 
     public static final String ARG_TOGGLE = "toggle";

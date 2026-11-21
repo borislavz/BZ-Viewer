@@ -18,12 +18,14 @@ import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.borislav007.bzview.core.CameraOption;
 import com.borislav007.bzview.core.QrCodes;
 import com.google.android.material.button.MaterialButton;
 
@@ -42,6 +44,7 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
     private TextView addressText;
     private TextView viewersText;
     private MaterialButton toggleButton;
+    private MaterialButton cameraButton;
     private String shownUri;
     private long lastPreviewMs;
 
@@ -89,6 +92,8 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         viewersText = findViewById(R.id.viewersText);
         toggleButton = findViewById(R.id.toggleButton);
         toggleButton.setOnClickListener(v -> onToggleClicked());
+        cameraButton = findViewById(R.id.cameraButton);
+        cameraButton.setOnClickListener(v -> showCameraPicker());
         refresh();
     }
 
@@ -138,6 +143,34 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         ContextCompat.startForegroundService(this, new Intent(this, StreamService.class));
     }
 
+    private void showCameraPicker() {
+        final StreamService s = service;
+        if (s == null || !s.isStreaming()) {
+            return;
+        }
+        final List<CameraOption> options = s.getCameraOptions();
+        if (options.isEmpty()) {
+            return;
+        }
+        String[] labels = new String[options.size()];
+        int checked = -1;
+        String active = s.getActiveCameraId();
+        for (int i = 0; i < options.size(); i++) {
+            labels[i] = options.get(i).label;
+            if (options.get(i).id.equals(active)) {
+                checked = i;
+            }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.choose_camera)
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    dialog.dismiss();
+                    s.selectCamera(options.get(which).id);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     private boolean hasCameraPermission() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED;
@@ -150,6 +183,7 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         boolean streaming = s != null && s.isStreaming();
         toggleButton.setEnabled(s != null);
         toggleButton.setText(streaming ? R.string.stop_streaming : R.string.start_streaming);
+        cameraButton.setEnabled(streaming && !s.getCameraOptions().isEmpty());
 
         String uri = streaming ? s.getPairingUri() : null;
         if (uri != null) {

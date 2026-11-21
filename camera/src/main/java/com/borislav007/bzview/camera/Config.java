@@ -10,8 +10,18 @@ final class Config {
 
     private static final String PREFS = "bzview_camera";
     private static final String KEY_TOKEN = "token";
+    private static final String KEY_CAMERA = "camera_id";
 
     private Config() {
+    }
+
+    /** Camera id chosen by the user, or null to use the default back camera. */
+    static synchronized String selectedCamera(Context context) {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CAMERA, null);
+    }
+
+    static synchronized void setSelectedCamera(Context context, String id) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_CAMERA, id).apply();
     }
 
     /** Secret that viewers need to connect. Created once, kept across restarts. */
