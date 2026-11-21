@@ -9,6 +9,8 @@
     <string name="torch_on">Torch on</string>
     <string name="torch_off">Torch off</string>
     <string name="forget">Forget</string>
+    <string name="bright">Bright</string>
+    <string name="normal">Normal</string>
     <string name="fullscreen">Full screen</string>
     <string name="exit_fullscreen">Exit full screen</string>
     <string name="not_paired">Not paired. Tap Scan QR and scan the code shown by BZ View Camera on your other phone.</string>

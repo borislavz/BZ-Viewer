@@ -25,14 +25,14 @@
 
     <Button
         android:id="@+id/exitFullscreenButton"
-        style="@style/Widget.Material3.Button.TextButton"
+        style="@style/ControlButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_margin="8dp"
-        android:background="#99000000"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
         android:text="@string/exit_fullscreen"
-        android:textColor="#FFFFFF"
         android:visibility="gone" />
 
     <LinearLayout
@@ -40,38 +40,55 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:background="#99000000"
-        android:orientation="horizontal"
+        android:background="#B3000000"
+        android:orientation="vertical"
         android:padding="4dp">
 
-        <Button
-            android:id="@+id/scanButton"
-            style="@style/ControlButton"
-            android:text="@string/scan_qr" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/addressButton"
-            style="@style/ControlButton"
-            android:text="@string/address" />
+            <Button
+                android:id="@+id/scanButton"
+                style="@style/ControlButton"
+                android:text="@string/scan_qr" />
 
-        <Button
-            android:id="@+id/cameraButton"
-            style="@style/ControlButton"
-            android:text="@string/camera_button" />
+            <Button
+                android:id="@+id/addressButton"
+                style="@style/ControlButton"
+                android:text="@string/address" />
 
-        <Button
-            android:id="@+id/torchButton"
-            style="@style/ControlButton"
-            android:text="@string/torch_on" />
+            <Button
+                android:id="@+id/cameraButton"
+                style="@style/ControlButton"
+                android:text="@string/camera_button" />
 
-        <Button
-            android:id="@+id/fullscreenButton"
-            style="@style/ControlButton"
-            android:text="@string/fullscreen" />
+            <Button
+                android:id="@+id/disconnectButton"
+                style="@style/ControlButton"
+                android:text="@string/forget" />
+        </LinearLayout>
 
-        <Button
-            android:id="@+id/disconnectButton"
-            style="@style/ControlButton"
-            android:text="@string/forget" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/torchButton"
+                style="@style/ControlButton"
+                android:text="@string/torch_on" />
+
+            <Button
+                android:id="@+id/brightButton"
+                style="@style/ControlButton"
+                android:text="@string/bright" />
+
+            <Button
+                android:id="@+id/fullscreenButton"
+                style="@style/ControlButton"
+                android:text="@string/fullscreen" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

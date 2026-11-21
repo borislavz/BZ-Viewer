@@ -2,14 +2,25 @@
 <resources>
     <style name="Theme.BZViewViewer" parent="Theme.Material3.DayNight.NoActionBar" />
 
-    <style name="ControlButton" parent="Widget.Material3.Button.TextButton">
+    <!-- Solid, rounded, outlined buttons with pressed and disabled looks. -->
+    <style name="ControlButton" parent="Widget.Material3.Button">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
+        <item name="android:layout_margin">3dp</item>
         <item name="android:minWidth">0dp</item>
-        <item name="android:paddingLeft">2dp</item>
-        <item name="android:paddingRight">2dp</item>
-        <item name="android:textColor">#FFFFFF</item>
-        <item name="android:textSize">12sp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingLeft">4dp</item>
+        <item name="android:paddingRight">4dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/control_button_text</item>
+        <item name="backgroundTint">@color/control_button_bg</item>
+        <item name="strokeColor">@color/control_button_stroke</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cornerRadius">12dp</item>
     </style>
 </resources>

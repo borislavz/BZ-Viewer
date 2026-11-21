@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -43,7 +45,11 @@ public class ViewerActivity extends AppCompatActivity {
 
     private static final String PREFS = "bzview_viewer";
     private static final String KEY_URI = "camera_uri";
+    private static final String KEY_BRIGHT = "bright";
     private static final long STATUS_HIDE_DELAY_MS = 3000;
+    /** Bright mode: colors x1.35 plus a small lift (0-255 scale), enough to see into dim scenes. */
+    private static final float BRIGHT_GAIN = 1.35f;
+    private static final float BRIGHT_OFFSET = 25f;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final AtomicReference<Bitmap> pendingFrame = new AtomicReference<>();
@@ -57,6 +63,8 @@ public class ViewerActivity extends AppCompatActivity {
     private Button torchButton;
     private Button disconnectButton;
     private Button fullscreenButton;
+    private Button brightButton;
+    private boolean bright;
     private Button exitFullscreenButton;
     private LinearLayout controlBar;
     private boolean fullscreen;
@@ -108,6 +116,9 @@ public class ViewerActivity extends AppCompatActivity {
         exitFullscreenButton = findViewById(R.id.exitFullscreenButton);
         fullscreenButton.setOnClickListener(v -> setFullscreen(true));
         exitFullscreenButton.setOnClickListener(v -> setFullscreen(false));
+        brightButton = findViewById(R.id.brightButton);
+        brightButton.setOnClickListener(v -> setBright(!bright));
+        setBright(getPreferences().getBoolean(KEY_BRIGHT, false));
         // Back leaves full screen first; a second Back exits the app as usual.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -355,6 +366,23 @@ public class ViewerActivity extends AppCompatActivity {
         }
         controlBar.setVisibility(on ? View.GONE : View.VISIBLE);
         exitFullscreenButton.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    /** Brightens the picture on this phone only (the button shows what a tap will do). */
+    private void setBright(boolean on) {
+        bright = on;
+        if (on) {
+            ColorMatrix m = new ColorMatrix(new float[]{
+                    BRIGHT_GAIN, 0, 0, 0, BRIGHT_OFFSET,
+                    0, BRIGHT_GAIN, 0, 0, BRIGHT_OFFSET,
+                    0, 0, BRIGHT_GAIN, 0, BRIGHT_OFFSET,
+                    0, 0, 0, 1, 0});
+            videoView.setColorFilter(new ColorMatrixColorFilter(m));
+        } else {
+            videoView.clearColorFilter();
+        }
+        brightButton.setText(on ? R.string.normal : R.string.bright);
+        getPreferences().edit().putBoolean(KEY_BRIGHT, on).apply();
     }
 
     private void updateButtons() {
