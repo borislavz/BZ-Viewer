@@ -23,7 +23,20 @@
         android:textColor="#FFFFFF"
         android:textSize="14sp" />
 
+    <Button
+        android:id="@+id/exitFullscreenButton"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:background="#99000000"
+        android:text="@string/exit_fullscreen"
+        android:textColor="#FFFFFF"
+        android:visibility="gone" />
+
     <LinearLayout
+        android:id="@+id/controlBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
@@ -50,6 +63,11 @@
             android:id="@+id/torchButton"
             style="@style/ControlButton"
             android:text="@string/torch_on" />
+
+        <Button
+            android:id="@+id/fullscreenButton"
+            style="@style/ControlButton"
+            android:text="@string/fullscreen" />
 
         <Button
             android:id="@+id/disconnectButton"

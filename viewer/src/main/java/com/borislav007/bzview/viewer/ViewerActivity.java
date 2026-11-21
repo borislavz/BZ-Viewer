@@ -14,16 +14,20 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.borislav007.bzview.core.CameraOption;
 import com.borislav007.bzview.core.MjpegClient;
@@ -49,6 +53,10 @@ public class ViewerActivity extends AppCompatActivity {
     private Button cameraButton;
     private Button torchButton;
     private Button disconnectButton;
+    private Button fullscreenButton;
+    private Button exitFullscreenButton;
+    private LinearLayout controlBar;
+    private boolean fullscreen;
 
     private PairingInfo info;
     private MjpegClient client;
@@ -91,6 +99,23 @@ public class ViewerActivity extends AppCompatActivity {
         cameraButton.setOnClickListener(v -> showCameraPicker());
         torchButton.setOnClickListener(v -> runCommand(Protocol.CMD_TORCH, Protocol.ARG_TOGGLE));
         disconnectButton.setOnClickListener(v -> forgetCamera());
+        controlBar = findViewById(R.id.controlBar);
+        fullscreenButton = findViewById(R.id.fullscreenButton);
+        exitFullscreenButton = findViewById(R.id.exitFullscreenButton);
+        fullscreenButton.setOnClickListener(v -> setFullscreen(true));
+        exitFullscreenButton.setOnClickListener(v -> setFullscreen(false));
+        // Back leaves full screen first; a second Back exits the app as usual.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (fullscreen) {
+                    setFullscreen(false);
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
 
         info = PairingInfo.parse(getPreferences().getString(KEY_URI, null));
         showStatus(getString(info == null ? R.string.not_paired : R.string.connecting), false);
@@ -305,6 +330,21 @@ public class ViewerActivity extends AppCompatActivity {
     }
 
     // ---------------------------------------------------------------- UI helpers
+
+    /** Hides the system bars and the control bar, leaving only the video. */
+    private void setFullscreen(boolean on) {
+        fullscreen = on;
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (on) {
+            controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            controller.hide(WindowInsetsCompat.Type.systemBars());
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars());
+        }
+        controlBar.setVisibility(on ? View.GONE : View.VISIBLE);
+        exitFullscreenButton.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
 
     private void updateButtons() {
         cameraButton.setEnabled(connected);
