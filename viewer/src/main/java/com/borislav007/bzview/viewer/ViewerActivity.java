@@ -49,6 +49,9 @@ public class ViewerActivity extends AppCompatActivity {
     private final AtomicReference<Bitmap> pendingFrame = new AtomicReference<>();
 
     private ImageView videoView;
+    private ZoomPanController zoom;
+    private int lastFrameWidth;
+    private int lastFrameHeight;
     private TextView statusText;
     private Button cameraButton;
     private Button torchButton;
@@ -88,6 +91,7 @@ public class ViewerActivity extends AppCompatActivity {
         });
 
         videoView = findViewById(R.id.videoView);
+        zoom = new ZoomPanController(this, videoView);
         statusText = findViewById(R.id.statusText);
         cameraButton = findViewById(R.id.cameraButton);
         torchButton = findViewById(R.id.torchButton);
@@ -140,6 +144,7 @@ public class ViewerActivity extends AppCompatActivity {
 
     private void pair(PairingInfo newInfo) {
         disconnect();
+        zoom.reset();
         info = newInfo;
         getPreferences().edit().putString(KEY_URI, newInfo.toUri()).apply();
         connect();
@@ -150,6 +155,7 @@ public class ViewerActivity extends AppCompatActivity {
         info = null;
         getPreferences().edit().remove(KEY_URI).apply();
         videoView.setImageDrawable(null);
+        zoom.reset();
         showStatus(getString(R.string.not_paired), false);
         updateButtons();
     }
@@ -234,6 +240,11 @@ public class ViewerActivity extends AppCompatActivity {
         Bitmap bitmap = pendingFrame.getAndSet(null);
         if (bitmap != null) {
             videoView.setImageBitmap(bitmap);
+            if (bitmap.getWidth() != lastFrameWidth || bitmap.getHeight() != lastFrameHeight) {
+                lastFrameWidth = bitmap.getWidth();
+                lastFrameHeight = bitmap.getHeight();
+                zoom.refresh(); // picture shape changed (e.g. another camera): re-fit the zoom
+            }
         }
     }
 
