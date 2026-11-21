@@ -18,8 +18,9 @@ android {
         applicationId = "com.borislav007.bzview.viewer"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -68,4 +69,8 @@ dependencies {
     implementation("androidx.camera:camera-view:$camerax")
     // QR code scanning (bundled model, works offline).
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

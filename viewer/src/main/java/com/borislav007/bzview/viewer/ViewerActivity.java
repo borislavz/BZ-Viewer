@@ -91,7 +91,7 @@ public class ViewerActivity extends AppCompatActivity {
         });
 
         videoView = findViewById(R.id.videoView);
-        zoom = new ZoomPanController(this, videoView);
+        zoom = new ZoomPanController(this, videoView, root);
         statusText = findViewById(R.id.statusText);
         cameraButton = findViewById(R.id.cameraButton);
         torchButton = findViewById(R.id.torchButton);

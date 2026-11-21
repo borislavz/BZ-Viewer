@@ -17,6 +17,7 @@ final class ZoomPanController implements View.OnTouchListener {
 
     private static final float MAX_ZOOM = 6f;
     private static final float DOUBLE_TAP_ZOOM = 2.5f;
+    private static final float SNAP_TO_NORMAL = 1.15f;
 
     private final ImageView view;
     private final ScaleGestureDetector scaleDetector;
@@ -26,8 +27,15 @@ final class ZoomPanController implements View.OnTouchListener {
     private float tx = 0f;
     private float ty = 0f;
 
+    /**
+     * @param view        the picture that is zoomed and panned
+     * @param touchTarget a view that is NOT transformed (e.g. the parent). Touches must be read
+     *                    here: a transformed view reports touch positions in its own scaled
+     *                    coordinates, which makes pinch gestures feed back on themselves and
+     *                    stops the picture from zooming out again.
+     */
     @SuppressLint("ClickableViewAccessibility")
-    ZoomPanController(Context context, ImageView view) {
+    ZoomPanController(Context context, ImageView view, View touchTarget) {
         this.view = view;
 
         scaleDetector = new ScaleGestureDetector(context,
@@ -35,9 +43,18 @@ final class ZoomPanController implements View.OnTouchListener {
                     @Override
                     public boolean onScale(ScaleGestureDetector detector) {
                         zoomTo(scale * detector.getScaleFactor(),
-                                detector.getFocusX() - ZoomPanController.this.view.getWidth() / 2f,
-                                detector.getFocusY() - ZoomPanController.this.view.getHeight() / 2f);
+                                detector.getFocusX() - centerX(),
+                                detector.getFocusY() - centerY());
                         return true;
+                    }
+
+                    @Override
+                    public void onScaleEnd(ScaleGestureDetector detector) {
+                        // The system ends a pinch when the fingers get close together; if the
+                        // picture is almost back to normal size, snap it to exactly normal.
+                        if (scale < SNAP_TO_NORMAL) {
+                            reset();
+                        }
                     }
                 });
 
@@ -62,15 +79,13 @@ final class ZoomPanController implements View.OnTouchListener {
                 if (scale > 1f) {
                     reset();
                 } else {
-                    zoomTo(DOUBLE_TAP_ZOOM,
-                            e.getX() - ZoomPanController.this.view.getWidth() / 2f,
-                            e.getY() - ZoomPanController.this.view.getHeight() / 2f);
+                    zoomTo(DOUBLE_TAP_ZOOM, e.getX() - centerX(), e.getY() - centerY());
                 }
                 return true;
             }
         });
 
-        view.setOnTouchListener(this);
+        touchTarget.setOnTouchListener(this);
         // Keep the picture inside its bounds when the view changes size (e.g. full screen).
         view.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> apply());
     }
@@ -80,6 +95,15 @@ final class ZoomPanController implements View.OnTouchListener {
         scaleDetector.onTouchEvent(event);
         gestureDetector.onTouchEvent(event);
         return true;
+    }
+
+    /** Center of the picture view in its parent's coordinates (layout position, ignores zoom). */
+    private float centerX() {
+        return view.getLeft() + view.getWidth() / 2f;
+    }
+
+    private float centerY() {
+        return view.getTop() + view.getHeight() / 2f;
     }
 
     /** Back to normal size. */
