@@ -10,6 +10,9 @@
     <string name="torch_off">Torch off</string>
     <string name="forget">Forget</string>
     <string name="exit">Exit</string>
+    <string name="badge_live">LIVE</string>
+    <string name="badge_no_video">NO VIDEO %1$ds</string>
+    <string name="badge_connecting">CONNECTING</string>
     <string name="bright">Bright</string>
     <string name="normal">Normal</string>
     <string name="fullscreen">Full screen</string>

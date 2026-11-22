@@ -10,6 +10,10 @@ import android.graphics.ColorMatrixColorFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.text.InputType;
 import android.view.View;
 import android.view.WindowManager;
@@ -37,6 +41,9 @@ import com.borislav007.bzview.core.PairingInfo;
 import com.borislav007.bzview.core.Protocol;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -50,6 +57,12 @@ public class ViewerActivity extends AppCompatActivity {
     /** Bright mode: colors x1.35 plus a small lift (0-255 scale), enough to see into dim scenes. */
     private static final float BRIGHT_GAIN = 1.35f;
     private static final float BRIGHT_OFFSET = 25f;
+    /** No new frame for this long means the stream has stalled. */
+    private static final long STALL_MS = 2500;
+    private static final long BADGE_TICK_MS = 500;
+    private static final int COLOR_LIVE = 0xFF4CAF50;
+    private static final int COLOR_WAIT = 0xFFFFB300;
+    private static final int COLOR_STALLED = 0xFFF44336;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final AtomicReference<Bitmap> pendingFrame = new AtomicReference<>();
@@ -59,6 +72,20 @@ public class ViewerActivity extends AppCompatActivity {
     private int lastFrameWidth;
     private int lastFrameHeight;
     private TextView statusText;
+    private TextView liveBadge;
+    private String shownBadge = "";
+    private final SimpleDateFormat clockFormat = new SimpleDateFormat("HH:mm:ss", Locale.US);
+    // Written on the network thread, read on the UI thread.
+    private volatile long lastFrameArrivalMs;
+    private volatile long lastCameraTimeMs;
+    private volatile long connectedAtMs;
+    private final Runnable badgeTick = new Runnable() {
+        @Override
+        public void run() {
+            updateLiveBadge();
+            ui.postDelayed(this, BADGE_TICK_MS);
+        }
+    };
     private Button cameraButton;
     private Button torchButton;
     private Button disconnectButton;
@@ -101,6 +128,7 @@ public class ViewerActivity extends AppCompatActivity {
         videoView = findViewById(R.id.videoView);
         zoom = new ZoomPanController(this, videoView, root);
         statusText = findViewById(R.id.statusText);
+        liveBadge = findViewById(R.id.liveBadge);
         cameraButton = findViewById(R.id.cameraButton);
         torchButton = findViewById(R.id.torchButton);
         disconnectButton = findViewById(R.id.disconnectButton);
@@ -144,10 +172,13 @@ public class ViewerActivity extends AppCompatActivity {
         if (info != null && client == null) {
             connect();
         }
+        ui.removeCallbacks(badgeTick);
+        ui.post(badgeTick);
     }
 
     @Override
     protected void onStop() {
+        ui.removeCallbacks(badgeTick);
         disconnect();
         super.onStop();
     }
@@ -205,6 +236,7 @@ public class ViewerActivity extends AppCompatActivity {
         client = new MjpegClient(info, new MjpegClient.Listener() {
             @Override
             public void onConnected() {
+                connectedAtMs = SystemClock.elapsedRealtime();
                 runOnUiThread(() -> {
                     connected = true;
                     showStatus(getString(R.string.connected_to, info != null ? info.host : ""), true);
@@ -214,11 +246,13 @@ public class ViewerActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFrame(byte[] jpeg) {
+            public void onFrame(byte[] jpeg, long cameraTimeMs) {
                 Bitmap bitmap = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.length);
                 if (bitmap == null) {
                     return;
                 }
+                lastCameraTimeMs = cameraTimeMs;
+                lastFrameArrivalMs = SystemClock.elapsedRealtime();
                 // Keep only the newest frame so a slow UI never builds up a backlog.
                 if (pendingFrame.getAndSet(bitmap) == null) {
                     runOnUiThread(ViewerActivity.this::showPendingFrame);
@@ -252,6 +286,7 @@ public class ViewerActivity extends AppCompatActivity {
         Bitmap bitmap = pendingFrame.getAndSet(null);
         if (bitmap != null) {
             videoView.setImageBitmap(bitmap);
+            updateLiveBadge();
             if (bitmap.getWidth() != lastFrameWidth || bitmap.getHeight() != lastFrameHeight) {
                 lastFrameWidth = bitmap.getWidth();
                 lastFrameHeight = bitmap.getHeight();
@@ -367,6 +402,49 @@ public class ViewerActivity extends AppCompatActivity {
         }
         controlBar.setVisibility(on ? View.GONE : View.VISIBLE);
         exitFullscreenButton.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    /**
+     * Shows whether the stream is alive. The badge is not part of the zoomed picture, so it is
+     * always visible: green with the camera's capture time while frames arrive, amber while
+     * connecting, red when no frame has arrived for a few seconds.
+     */
+    private void updateLiveBadge() {
+        if (info == null) {
+            liveBadge.setVisibility(View.GONE);
+            shownBadge = "";
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        long lastFrame = lastFrameArrivalMs;
+        long since = connectedAtMs;
+        boolean haveFrame = connected && lastFrame > 0 && lastFrame >= since;
+        int color;
+        String text;
+        if (!connected) {
+            color = COLOR_WAIT;
+            text = getString(R.string.badge_connecting);
+        } else if (haveFrame && now - lastFrame <= STALL_MS) {
+            long t = lastCameraTimeMs > 0 ? lastCameraTimeMs : System.currentTimeMillis();
+            color = COLOR_LIVE;
+            text = getString(R.string.badge_live) + "  " + clockFormat.format(new Date(t));
+        } else if (!haveFrame && now - since <= STALL_MS) {
+            color = COLOR_WAIT;
+            text = getString(R.string.badge_connecting);
+        } else {
+            long stalledSince = haveFrame ? lastFrame : since;
+            color = COLOR_STALLED;
+            text = getString(R.string.badge_no_video, (now - stalledSince) / 1000);
+        }
+        String key = color + text;
+        liveBadge.setVisibility(View.VISIBLE);
+        if (key.equals(shownBadge)) {
+            return;
+        }
+        shownBadge = key;
+        SpannableStringBuilder sb = new SpannableStringBuilder("\u25CF ").append(text);
+        sb.setSpan(new ForegroundColorSpan(color), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        liveBadge.setText(sb);
     }
 
     /** Brightens the picture on this phone only (the button shows what a tap will do). */

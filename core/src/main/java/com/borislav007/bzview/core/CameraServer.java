@@ -50,6 +50,7 @@ public final class CameraServer {
     private volatile boolean running;
     private byte[] latestFrame;
     private long frameSeq;
+    private long latestFrameTimeMs;
 
     public CameraServer(int port, String token, Listener listener) {
         this.port = port;
@@ -103,6 +104,7 @@ public final class CameraServer {
     public void publishFrame(byte[] jpeg) {
         synchronized (frameLock) {
             latestFrame = jpeg;
+            latestFrameTimeMs = System.currentTimeMillis();
             frameSeq++;
             frameLock.notifyAll();
         }
@@ -191,6 +193,7 @@ public final class CameraServer {
             long lastSeq = 0;
             while (running) {
                 byte[] frame;
+                long frameTimeMs = 0;
                 synchronized (frameLock) {
                     if (frameSeq == lastSeq) {
                         frameLock.wait(2000);
@@ -202,6 +205,7 @@ public final class CameraServer {
                         frame = null;
                     } else {
                         frame = latestFrame;
+                        frameTimeMs = latestFrameTimeMs;
                         lastSeq = frameSeq;
                     }
                 }
@@ -215,6 +219,7 @@ public final class CameraServer {
                 out.write(("--" + Protocol.BOUNDARY + "\r\n"
                         + "Content-Type: image/jpeg\r\n"
                         + "Content-Length: " + frame.length + "\r\n"
+                        + Protocol.HEADER_FRAME_TIME + ": " + frameTimeMs + "\r\n"
                         + "\r\n").getBytes(StandardCharsets.ISO_8859_1));
                 out.write(frame);
                 out.write('\r');

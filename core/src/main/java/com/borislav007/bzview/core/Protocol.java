@@ -16,6 +16,8 @@ public final class Protocol {
     public static final String SCHEME = "bzview";
 
     public static final String PATH_STREAM = "/stream";
+    /** Per-frame header: the camera phone's clock (epoch milliseconds) when the frame was captured. */
+    public static final String HEADER_FRAME_TIME = "X-Frame-Time";
     public static final String PATH_COMMAND = "/cmd";
 
     public static final String CMD_STATUS = "status";

@@ -21,8 +21,13 @@ public final class MjpegClient {
         /** Called from the client thread. */
         void onConnected();
 
-        /** Called from the client thread with one complete JPEG image. */
-        void onFrame(byte[] jpeg);
+        /**
+         * Called from the client thread with one complete JPEG image.
+         *
+         * @param cameraTimeMs the camera phone's clock when the frame was captured
+         *                     (epoch milliseconds), or 0 if the camera did not say
+         */
+        void onFrame(byte[] jpeg, long cameraTimeMs);
 
         /** Called from the client thread when the connection drops; the client will retry. */
         void onDisconnected(String reason);
@@ -112,6 +117,7 @@ public final class MjpegClient {
             } while (!line.startsWith("--"));
 
             int length = -1;
+            long cameraTimeMs = 0;
             while (true) {
                 line = readLine(in);
                 if (line == null) {
@@ -125,6 +131,14 @@ public final class MjpegClient {
                         length = Integer.parseInt(line.substring(15).trim());
                     } catch (NumberFormatException e) {
                         throw new IOException("Bad frame header");
+                    }
+                } else if (line.regionMatches(true, 0, Protocol.HEADER_FRAME_TIME + ":", 0,
+                        Protocol.HEADER_FRAME_TIME.length() + 1)) {
+                    try {
+                        cameraTimeMs = Long.parseLong(
+                                line.substring(Protocol.HEADER_FRAME_TIME.length() + 1).trim());
+                    } catch (NumberFormatException ignored) {
+                        cameraTimeMs = 0;
                     }
                 }
             }
@@ -140,7 +154,7 @@ public final class MjpegClient {
                 }
                 read += n;
             }
-            listener.onFrame(frame);
+            listener.onFrame(frame, cameraTimeMs);
         }
     }
 
