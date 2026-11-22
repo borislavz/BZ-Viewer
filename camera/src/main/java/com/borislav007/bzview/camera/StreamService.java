@@ -425,8 +425,6 @@ public class StreamService extends LifecycleService {
         }
     };
 
-    private final ClockOverlay clockOverlay = new ClockOverlay();
-
     private void analyze(ImageProxy image) {
         try {
             CameraServer s = server;
@@ -449,7 +447,6 @@ public class StreamService extends LifecycleService {
                 bitmap.recycle();
                 bitmap = rotated;
             }
-            bitmap = clockOverlay.draw(bitmap);
             ByteArrayOutputStream bos = new ByteArrayOutputStream(64 * 1024);
             bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, bos);
             bitmap.recycle();
