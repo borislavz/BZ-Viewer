@@ -23,6 +23,7 @@ namespace BZView.Viewer
         private sealed class FramePacket
         {
             public Bitmap Image;
+            public byte[] Jpeg;
             public long CameraTimeMs;
         }
 
@@ -37,6 +38,8 @@ namespace BZView.Viewer
         private Button cameraButton;
         private Button torchButton;
         private Button brightButton;
+        private Button snapshotButton;
+        private Button folderButton;
         private Button fullscreenButton;
         private Button forgetButton;
         private Button exitButton;
@@ -54,6 +57,11 @@ namespace BZView.Viewer
         private long lastFrameArrivalMs;
         private long lastCameraTimeMs;
         private long connectedAtMs;
+
+        // The original JPEG of the picture on screen, saved as-is by Snapshot.
+        private byte[] currentJpeg;
+        private long currentJpegTimeMs;
+        private string lastSnapshotPath;
 
         private FormBorderStyle savedStyle;
         private FormWindowState savedState;
@@ -130,6 +138,8 @@ namespace BZView.Viewer
             cameraButton = MakeButton("Camera...", delegate { ShowCameraMenu(); });
             torchButton = MakeButton("Torch on", delegate { RunCommand(Protocol.CmdTorch, Protocol.ArgToggle); });
             brightButton = MakeButton("Bright", delegate { ToggleBright(); });
+            snapshotButton = MakeButton("Snapshot (Ctrl+S)", delegate { SaveSnapshot(); });
+            folderButton = MakeButton("Snapshots folder", delegate { OpenSnapshotFolder(); });
             fullscreenButton = MakeButton("Full screen (F11)", delegate { SetFullscreen(!fullscreen); });
             forgetButton = MakeButton("Forget", delegate { ForgetCamera(); });
             exitButton = MakeButton("Exit", delegate { Close(); });
@@ -179,6 +189,8 @@ namespace BZView.Viewer
             menu.Items.Add("Reset zoom", null, delegate { view.ResetZoom(); });
             menuBright = new ToolStripMenuItem("Bright", null, delegate { ToggleBright(); });
             menu.Items.Add(menuBright);
+            menu.Items.Add("Save snapshot", null, delegate { SaveSnapshot(); });
+            menu.Items.Add("Open snapshots folder", null, delegate { OpenSnapshotFolder(); });
             menuFullscreen = new ToolStripMenuItem("Full screen", null, delegate { SetFullscreen(!fullscreen); });
             menu.Items.Add(menuFullscreen);
             menu.Items.Add(new ToolStripSeparator());
@@ -212,6 +224,7 @@ namespace BZView.Viewer
         {
             Disconnect();
             view.ClearFrame();
+            currentJpeg = null;
             info = newInfo;
             Settings.Address = newInfo.ToUri();
             Settings.Save();
@@ -225,6 +238,7 @@ namespace BZView.Viewer
             Settings.Address = null;
             Settings.Save();
             view.ClearFrame();
+            currentJpeg = null;
             ShowNotPaired();
             UpdateButtons();
             UpdateBadge();
@@ -327,6 +341,7 @@ namespace BZView.Viewer
             }
             FramePacket packet = new FramePacket();
             packet.Image = bitmap;
+            packet.Jpeg = jpeg;
             packet.CameraTimeMs = cameraTimeMs;
             FramePacket old = Interlocked.Exchange(ref pending, packet);
             if (old != null)
@@ -352,9 +367,82 @@ namespace BZView.Viewer
                 return;
             }
             view.SetFrame(packet.Image);
+            bool firstPicture = currentJpeg == null;
+            currentJpeg = packet.Jpeg;
+            currentJpegTimeMs = packet.CameraTimeMs;
             lastFrameArrivalMs = clock.ElapsedMilliseconds;
             lastCameraTimeMs = packet.CameraTimeMs;
+            if (firstPicture)
+            {
+                UpdateButtons();
+            }
             UpdateBadge();
+        }
+
+        // ---------------------------------------------------------------- snapshots
+
+        private static string SnapshotFolder()
+        {
+            string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            if (string.IsNullOrEmpty(pictures))
+            {
+                pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            }
+            return Path.Combine(pictures, "BZ View");
+        }
+
+        /// <summary>Saves the picture on screen as a JPEG, exactly as the camera sent it (no Bright, no zoom).</summary>
+        private void SaveSnapshot()
+        {
+            byte[] jpeg = currentJpeg;
+            if (jpeg == null)
+            {
+                SetStatus("No picture to save yet.");
+                view.ShowToast("No picture yet");
+                return;
+            }
+            try
+            {
+                string folder = SnapshotFolder();
+                Directory.CreateDirectory(folder);
+                DateTime taken = currentJpegTimeMs > 0
+                        ? new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(currentJpegTimeMs).ToLocalTime()
+                        : DateTime.Now;
+                string name = "BZ-View-" + taken.ToString("yyyyMMdd-HHmmss");
+                string path = Path.Combine(folder, name + ".jpg");
+                for (int n = 2; File.Exists(path); n++)
+                {
+                    path = Path.Combine(folder, name + "-" + n + ".jpg");
+                }
+                File.WriteAllBytes(path, jpeg);
+                lastSnapshotPath = path;
+                SetStatus("Saved " + path);
+                view.ShowToast("Snapshot saved");
+            }
+            catch (Exception e)
+            {
+                SetStatus("Could not save the snapshot: " + e.Message);
+                view.ShowToast("Could not save snapshot");
+            }
+        }
+
+        private void OpenSnapshotFolder()
+        {
+            try
+            {
+                if (lastSnapshotPath != null && File.Exists(lastSnapshotPath))
+                {
+                    Process.Start("explorer.exe", "/select,\"" + lastSnapshotPath + "\"");
+                    return;
+                }
+                string folder = SnapshotFolder();
+                Directory.CreateDirectory(folder);
+                Process.Start("explorer.exe", "\"" + folder + "\"");
+            }
+            catch (Exception e)
+            {
+                SetStatus("Could not open the folder: " + e.Message);
+            }
         }
 
         // ---------------------------------------------------------------- live badge
@@ -587,6 +675,11 @@ namespace BZView.Viewer
                 SetFullscreen(!fullscreen);
                 return true;
             }
+            if (keyData == (Keys.Control | Keys.S))
+            {
+                SaveSnapshot();
+                return true;
+            }
             if (keyData == Keys.Escape && fullscreen)
             {
                 SetFullscreen(false);
@@ -601,6 +694,7 @@ namespace BZView.Viewer
             torchButton.Enabled = connected && hasTorch;
             torchButton.Text = torchOn ? "Torch off" : "Torch on";
             forgetButton.Enabled = info != null;
+            snapshotButton.Enabled = currentJpeg != null;
         }
 
         private void SetStatus(string text)

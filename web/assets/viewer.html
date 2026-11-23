@@ -37,10 +37,13 @@
   button:disabled { background: #464646; border-color: #555; color: #999; cursor: default; }
   button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   #bar button { flex: 1 1 90px; }
-  #btnExitFs { position: absolute; top: calc(8px + env(safe-area-inset-top)); right: 8px; display: none;
-    background: rgba(0, 0, 0, .65); }
+  #fsTools { position: absolute; top: calc(8px + env(safe-area-inset-top)); right: 8px; display: none; gap: 6px; }
+  #fsTools button { background: rgba(0, 0, 0, .65); }
   .fs #bar { display: none; }
-  .fs #btnExitFs { display: block; }
+  .fs #fsTools { display: flex; }
+  #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  #flash.go { animation: flash .18s ease-out; }
+  @keyframes flash { from { opacity: .6; } to { opacity: 0; } }
   #menuBack { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); display: flex;
     align-items: center; justify-content: center; padding: 16px; }
   #menu { background: #26262c; border-radius: 14px; padding: 8px; min-width: 260px; max-width: 100%;
@@ -58,12 +61,17 @@
     <div id="message"></div>
     <div id="badge" class="wait" hidden><i></i><span id="badgeText">CONNECTING</span></div>
     <div id="status" hidden></div>
-    <button id="btnExitFs" type="button">Exit full screen</button>
+    <div id="flash"></div>
+    <div id="fsTools">
+      <button id="btnSnapFs" type="button">Snapshot</button>
+      <button id="btnExitFs" type="button">Exit full screen</button>
+    </div>
   </div>
   <div id="bar">
     <button id="btnCamera" type="button" disabled>Camera</button>
     <button id="btnTorch" type="button" disabled>Torch on</button>
     <button id="btnBright" type="button">Bright</button>
+    <button id="btnSnap" type="button" disabled>Snapshot</button>
     <button id="btnFull" type="button">Full screen</button>
   </div>
   <div id="menuBack" hidden><div id="menu" role="dialog" aria-label="Choose camera"></div></div>
@@ -78,6 +86,7 @@
   var badge = $('badge'), badgeText = $('badgeText'), messageEl = $('message'), statusEl = $('status');
   var btnCamera = $('btnCamera'), btnTorch = $('btnTorch'), btnBright = $('btnBright');
   var btnFull = $('btnFull'), btnExitFs = $('btnExitFs');
+  var btnSnap = $('btnSnap'), btnSnapFs = $('btnSnapFs'), flashEl = $('flash');
   var menuBack = $('menuBack'), menu = $('menu');
 
   var token = new URLSearchParams(location.search).get('t') || '';
@@ -88,7 +97,8 @@
 
   var st = {
     connected: false, connectedAt: 0, lastFrameAt: 0, cameraTime: 0,
-    hasTorch: false, torchOn: false, hasFrame: false
+    hasTorch: false, torchOn: false, hasFrame: false,
+    lastJpeg: null, lastJpegTime: 0   // the original bytes of the picture on screen
   };
   var stopped = false;
   var abortCtl = null;
@@ -289,7 +299,9 @@
         if (pic.close) { pic.close(); }
         st.lastFrameAt = now();
         st.cameraTime = f.time;
-        if (!st.hasFrame) { st.hasFrame = true; setMessage(''); }
+        st.lastJpeg = f.bytes;
+        st.lastJpegTime = f.time;
+        if (!st.hasFrame) { st.hasFrame = true; setMessage(''); updateButtons(); }
         updateBadge();
       } catch (e) {
         // a damaged frame is skipped
@@ -447,7 +459,47 @@
     btnCamera.disabled = !st.connected;
     btnTorch.disabled = !(st.connected && st.hasTorch);
     btnTorch.textContent = st.torchOn ? 'Torch off' : 'Torch on';
+    btnSnap.disabled = !st.lastJpeg;
+    btnSnapFs.disabled = !st.lastJpeg;
   }
+
+  // ------------------------------------------------------------------ snapshot
+
+  /*
+   * Saves the picture on screen as a JPEG file, exactly as the camera sent it
+   * (no Bright, no zoom). The file name carries the camera's capture time.
+   */
+  function snapshotName() {
+    var d = st.lastJpegTime > 0 ? new Date(st.lastJpegTime) : new Date();
+    return 'BZ-View-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-'
+        + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds()) + '.jpg';
+  }
+
+  function takeSnapshot() {
+    if (!st.lastJpeg) { setStatus('No picture to save yet.', 2500); return; }
+    var name = snapshotName();
+    var url = URL.createObjectURL(new Blob([st.lastJpeg], { type: 'image/jpeg' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.hidden = true;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+    flashEl.classList.remove('go');
+    void flashEl.offsetWidth;   // restart the animation
+    flashEl.classList.add('go');
+    setStatus('Saved ' + name, 3000);
+  }
+
+  btnSnap.addEventListener('click', takeSnapshot);
+  btnSnapFs.addEventListener('click', takeSnapshot);
+  document.addEventListener('keydown', function (e) {
+    if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey && !e.altKey && menuBack.hidden) {
+      takeSnapshot();
+    }
+  });
 
   btnTorch.addEventListener('click', function () { runCommand('torch', 'toggle'); });
 

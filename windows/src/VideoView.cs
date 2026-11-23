@@ -35,6 +35,13 @@ namespace BZView.Viewer
         private Color badgeColor = Color.Gray;
         private Font badgeFont;
         private Font messageFont;
+        private Font toastFont;
+
+        private const int FlashMs = 160;
+        private const int ToastMs = 2500;
+        private string toast;
+        private int toastStart;
+        private System.Windows.Forms.Timer toastTimer;
 
         public VideoView()
         {
@@ -100,6 +107,29 @@ namespace BZView.Viewer
             }
             badgeText = text;
             badgeColor = color;
+            Invalidate();
+        }
+
+        /// <summary>Brief white flash plus a short message at the bottom (for example "Snapshot saved").</summary>
+        public void ShowToast(string text)
+        {
+            toast = text;
+            toastStart = Environment.TickCount;
+            if (toastTimer == null)
+            {
+                toastTimer = new System.Windows.Forms.Timer();
+                toastTimer.Interval = 40;
+                toastTimer.Tick += delegate
+                {
+                    if (unchecked(Environment.TickCount - toastStart) > ToastMs)
+                    {
+                        toastTimer.Stop();
+                        toast = null;
+                    }
+                    Invalidate();
+                };
+            }
+            toastTimer.Start();
             Invalidate();
         }
 
@@ -279,6 +309,48 @@ namespace BZView.Viewer
                 DrawMessage(g);
             }
             DrawBadge(g);
+            DrawToast(g);
+        }
+
+        private void DrawToast(Graphics g)
+        {
+            if (toast == null)
+            {
+                return;
+            }
+            int elapsed = unchecked(Environment.TickCount - toastStart);
+            if (elapsed < FlashMs)
+            {
+                int alpha = (int)(150f * (FlashMs - elapsed) / FlashMs);
+                using (Brush flash = new SolidBrush(Color.FromArgb(Math.Max(0, Math.Min(255, alpha)), 255, 255, 255)))
+                {
+                    g.FillRectangle(flash, 0, 0, Width, Height);
+                }
+            }
+            if (elapsed > ToastMs)
+            {
+                return;
+            }
+            if (toastFont == null)
+            {
+                toastFont = new Font("Segoe UI", 11f, FontStyle.Bold);
+            }
+            float k = g.DpiX / 96f;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+            SizeF text = g.MeasureString(toast, toastFont, PointF.Empty, StringFormat.GenericTypographic);
+            float padX = 16f * k;
+            float padY = 8f * k;
+            float boxW = text.Width + padX * 2f;
+            float boxH = text.Height + padY * 2f;
+            float boxX = (Width - boxW) / 2f;
+            float boxY = Height - boxH - 24f * k;
+            using (GraphicsPath path = RoundedRectangle(boxX, boxY, boxW, boxH, boxH / 2.4f))
+            using (Brush back = new SolidBrush(Color.FromArgb(220, 0, 0, 0)))
+            {
+                g.FillPath(back, path);
+            }
+            g.DrawString(toast, toastFont, Brushes.White, boxX + padX, boxY + padY, StringFormat.GenericTypographic);
         }
 
         private void DrawFrame(Graphics g, Bitmap bmp)
@@ -386,6 +458,14 @@ namespace BZView.Viewer
                 if (messageFont != null)
                 {
                     messageFont.Dispose();
+                }
+                if (toastFont != null)
+                {
+                    toastFont.Dispose();
+                }
+                if (toastTimer != null)
+                {
+                    toastTimer.Dispose();
                 }
             }
             base.Dispose(disposing);

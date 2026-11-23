@@ -19,6 +19,8 @@ You can also start it with the address as an argument: `BZ-View-Viewer.exe bzvie
 | Camera... | Choose which camera (lens) the phone uses |
 | Torch on/off | Flashlight on the camera phone (if it has one) |
 | Bright / Normal | Brightens the picture on this PC only |
+| Snapshot (Ctrl+S) | Saves the picture on screen as a JPEG in `Pictures\BZ View` (the original frame from the camera, without Bright or zoom). The file name is the camera's capture time, for example `BZ-View-20261123-101602.jpg` |
+| Snapshots folder | Opens the folder (selecting the last snapshot) |
 | Full screen (F11) | Picture only; Esc or F11 returns. Right-click also has these actions |
 | Forget | Forget the saved camera |
 | Mouse wheel / drag / double-click | Zoom, pan while zoomed, zoom in or reset |
