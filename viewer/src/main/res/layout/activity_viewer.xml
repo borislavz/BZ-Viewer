@@ -116,5 +116,12 @@
                 style="@style/ControlButton"
                 android:text="@string/exit" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/tailscaleButton"
+            style="@style/ControlButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/get_tailscale" />
     </LinearLayout>
 </FrameLayout>

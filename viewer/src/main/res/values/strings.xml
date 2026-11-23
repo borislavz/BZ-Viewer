@@ -12,6 +12,7 @@
     <string name="exit">Exit</string>
     <string name="badge_local">LOCAL</string>
     <string name="badge_remote">REMOTE</string>
+    <string name="get_tailscale">Get Tailscale (remote access)</string>
     <string name="badge_no_video">NO VIDEO %1$ds</string>
     <string name="badge_connecting">CONNECTING</string>
     <string name="bright">Bright</string>

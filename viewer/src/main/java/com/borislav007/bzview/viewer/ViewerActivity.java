@@ -1,8 +1,10 @@
 package com.borislav007.bzview.viewer;
 
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ColorMatrix;
@@ -86,6 +88,8 @@ public class ViewerActivity extends AppCompatActivity {
             ui.postDelayed(this, BADGE_TICK_MS);
         }
     };
+    private static final String TAILSCALE_PACKAGE = "com.tailscale.ipn";
+    private static final String TAILSCALE_DOWNLOAD = "https://tailscale.com/download";
     private Button cameraButton;
     private Button torchButton;
     private Button disconnectButton;
@@ -147,6 +151,7 @@ public class ViewerActivity extends AppCompatActivity {
         fullscreenButton.setOnClickListener(v -> setFullscreen(true));
         exitFullscreenButton.setOnClickListener(v -> setFullscreen(false));
         findViewById(R.id.exitButton).setOnClickListener(v -> finishAndRemoveTask());
+        findViewById(R.id.tailscaleButton).setOnClickListener(v -> openTailscaleInstall());
         brightButton = findViewById(R.id.brightButton);
         brightButton.setOnClickListener(v -> setBright(!bright));
         setBright(getPreferences().getBoolean(KEY_BRIGHT, false));
@@ -492,6 +497,17 @@ public class ViewerActivity extends AppCompatActivity {
         torchButton.setEnabled(connected && hasTorch);
         torchButton.setText(torchOn ? R.string.torch_off : R.string.torch_on);
         disconnectButton.setEnabled(info != null);
+    }
+
+    /** Opens the Tailscale listing in the Play Store, or its download page when no store is available. */
+    private void openTailscaleInstall() {
+        Intent store = new Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=" + TAILSCALE_PACKAGE));
+        try {
+            startActivity(store);
+        } catch (ActivityNotFoundException e) {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(TAILSCALE_DOWNLOAD)));
+        }
     }
 
     private void showStatus(String text, boolean autoHide) {
