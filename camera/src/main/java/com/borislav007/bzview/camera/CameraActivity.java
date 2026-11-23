@@ -47,6 +47,9 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
     private TextView statusText;
     private TextView addressText;
     private TextView remoteText;
+    private MaterialButton tailscaleButton;
+    private static final String TAILSCALE_PACKAGE = "com.tailscale.ipn";
+    private static final String TAILSCALE_DOWNLOAD = "https://tailscale.com/download";
     private TextView webHintText;
     private TextView webAddressText;
     private MaterialButton shareWebButton;
@@ -107,6 +110,8 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         webAddressText = findViewById(R.id.webAddressText);
         shareWebButton = findViewById(R.id.shareWebButton);
         shareWebButton.setOnClickListener(v -> shareWebLink());
+        tailscaleButton = findViewById(R.id.tailscaleButton);
+        tailscaleButton.setOnClickListener(v -> openTailscaleInstall());
         findViewById(R.id.exitButton).setOnClickListener(v -> exitApp());
         refresh();
     }
@@ -224,6 +229,17 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         return sb.toString();
     }
 
+    /** Opens the Tailscale listing in the Play Store, or its download page when no store is available. */
+    private void openTailscaleInstall() {
+        Intent store = new Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=" + TAILSCALE_PACKAGE));
+        try {
+            startActivity(store);
+        } catch (ActivityNotFoundException e) {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(TAILSCALE_DOWNLOAD)));
+        }
+    }
+
     private void shareWebLink() {
         StreamService s = service;
         String local = s != null && s.isStreaming() ? s.getWebUri() : null;
@@ -300,8 +316,10 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
             setTextIfChanged(remoteText, remote != null ? getString(R.string.remote_on, remote)
                     : getString(R.string.remote_off));
             remoteText.setVisibility(View.VISIBLE);
+            tailscaleButton.setVisibility(remote != null ? View.GONE : View.VISIBLE);
         } else {
             remoteText.setVisibility(View.GONE);
+            tailscaleButton.setVisibility(View.GONE);
         }
         String web = streaming ? s.getWebUri() : null;
         String remoteWeb = streaming ? s.getRemoteWebUri() : null;

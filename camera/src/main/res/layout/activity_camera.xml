@@ -54,6 +54,15 @@
             android:textSize="13sp"
             android:visibility="gone" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tailscaleButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/get_tailscale"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/webHintText"
             android:layout_width="wrap_content"
