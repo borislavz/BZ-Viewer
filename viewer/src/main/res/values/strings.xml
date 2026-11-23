@@ -6,13 +6,13 @@
     <string name="camera_button">Camera</string>
     <string name="choose_camera">Choose camera</string>
     <string name="no_cameras">The camera phone reports no cameras.</string>
-    <string name="torch_on">Torch on</string>
-    <string name="torch_off">Torch off</string>
+    <string name="torch_on">Light on</string>
+    <string name="torch_off">Light off</string>
     <string name="forget">Forget</string>
     <string name="exit">Exit</string>
     <string name="badge_local">LOCAL</string>
     <string name="badge_remote">REMOTE</string>
-    <string name="get_tailscale">Get Tailscale (remote access)</string>
+    <string name="get_tailscale">Get Tailscale</string>
     <string name="badge_no_video">NO VIDEO %1$ds</string>
     <string name="badge_connecting">CONNECTING</string>
     <string name="bright">Bright</string>

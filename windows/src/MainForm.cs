@@ -139,13 +139,16 @@ namespace BZView.Viewer
 
             connectButton = MakeButton("Connect...", delegate { ShowConnectDialog(); });
             cameraButton = MakeButton("Camera...", delegate { ShowCameraMenu(); });
-            torchButton = MakeButton("Torch on", delegate { RunCommand(Protocol.CmdTorch, Protocol.ArgToggle); });
+            torchButton = MakeButton("Light on", delegate { RunCommand(Protocol.CmdTorch, Protocol.ArgToggle); });
             brightButton = MakeButton("Bright", delegate { ToggleBright(); });
             snapshotButton = MakeButton("Snapshot (Ctrl+S)", delegate { SaveSnapshot(); });
             folderButton = MakeButton("Snapshots folder", delegate { OpenSnapshotFolder(); });
             fullscreenButton = MakeButton("Full screen (F11)", delegate { SetFullscreen(!fullscreen); });
-            tailscaleButton = MakeButton("Get Tailscale (remote access)", delegate { OpenTailscaleDownload(); });
+            // Two tidy rows: picture controls, then window and setup controls.
+            toolbar.SetFlowBreak(folderButton, true);
             forgetButton = MakeButton("Forget", delegate { ForgetCamera(); });
+            tailscaleButton = MakeButton("Get Tailscale", delegate { OpenTailscaleDownload(); });
+            tailscaleButton.Font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
             exitButton = MakeButton("Exit", delegate { Close(); });
         }
 
@@ -159,9 +162,9 @@ namespace BZView.Viewer
             b.UseVisualStyleBackColor = false;
             b.BackColor = ButtonColor;
             b.ForeColor = Color.White;
-            b.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            b.Padding = new Padding(8, 3, 8, 3);
-            b.Margin = new Padding(3);
+            b.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            b.Padding = new Padding(6, 0, 6, 0);
+            b.Margin = new Padding(2);
             b.Cursor = Cursors.Hand;
             b.FlatAppearance.BorderColor = Color.FromArgb(121, 134, 203);
             b.FlatAppearance.MouseOverBackColor = Color.FromArgb(92, 107, 192);
@@ -723,7 +726,7 @@ namespace BZView.Viewer
         {
             cameraButton.Enabled = connected;
             torchButton.Enabled = connected && hasTorch;
-            torchButton.Text = torchOn ? "Torch off" : "Torch on";
+            torchButton.Text = torchOn ? "Light off" : "Light on";
             forgetButton.Enabled = info != null;
             snapshotButton.Enabled = currentJpeg != null;
         }

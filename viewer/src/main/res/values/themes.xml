@@ -7,9 +7,9 @@
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:layout_margin">3dp</item>
+        <item name="android:layout_margin">2dp</item>
         <item name="android:minWidth">0dp</item>
-        <item name="android:minHeight">44dp</item>
+        <item name="android:minHeight">34dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
         <item name="android:paddingLeft">4dp</item>
@@ -21,6 +21,17 @@
         <item name="backgroundTint">@color/control_button_bg</item>
         <item name="strokeColor">@color/control_button_stroke</item>
         <item name="strokeWidth">1dp</item>
-        <item name="cornerRadius">12dp</item>
+        <item name="cornerRadius">10dp</item>
+    </style>
+
+    <!-- A slim secondary button (for example the Tailscale shortcut). -->
+    <style name="ControlButton.Small">
+        <item name="android:layout_weight">0</item>
+        <item name="android:minHeight">26dp</item>
+        <item name="android:paddingLeft">14dp</item>
+        <item name="android:paddingRight">14dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">normal</item>
+        <item name="cornerRadius">8dp</item>
     </style>
 </resources>

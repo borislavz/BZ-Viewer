@@ -56,8 +56,8 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/tailscaleButton"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent"
+            style="@style/CompactOutlinedButton.Small"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:text="@string/get_tailscale"
@@ -83,7 +83,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/shareWebButton"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/CompactOutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
@@ -108,6 +108,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/toggleButton"
+            style="@style/CompactButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -115,7 +116,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/cameraButton"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/CompactOutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -124,7 +125,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/exitButton"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/CompactOutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"

@@ -28,15 +28,16 @@
   #badge.stalled i { background: #f44336; }
   #status { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 6px 10px;
     border-radius: 8px; background: rgba(0, 0, 0, .65); font-size: 14px; pointer-events: none; }
-  #bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-    background: rgba(20, 20, 24, .96); }
-  button { font: inherit; font-weight: 700; color: #fff; background: #3949ab; border: 1px solid #7986cb;
-    border-radius: 12px; padding: 11px 12px; cursor: pointer; }
+  #bar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+    padding: 5px 5px calc(5px + env(safe-area-inset-bottom)); background: rgba(20, 20, 24, .96); }
+  button { font: inherit; font-size: 14px; font-weight: 700; line-height: 1.2; color: #fff; background: #3949ab;
+    border: 1px solid #7986cb; border-radius: 10px; padding: 6px 10px; cursor: pointer; }
   button:hover { background: #5c6bc0; }
   button:active { background: #283593; }
   button:disabled { background: #464646; border-color: #555; color: #999; cursor: default; }
   button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   #bar button { flex: 1 1 90px; }
+  #bar #btnTailscale { flex: 0 0 auto; margin: 0 auto; padding: 3px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; }
   #fsTools { position: absolute; top: calc(8px + env(safe-area-inset-top)); right: 8px; display: none; gap: 6px; }
   #fsTools button { background: rgba(0, 0, 0, .65); }
   .fs #bar { display: none; }
@@ -69,11 +70,11 @@
   </div>
   <div id="bar">
     <button id="btnCamera" type="button" disabled>Camera</button>
-    <button id="btnTorch" type="button" disabled>Torch on</button>
+    <button id="btnTorch" type="button" disabled>Light on</button>
     <button id="btnBright" type="button">Bright</button>
     <button id="btnSnap" type="button" disabled>Snapshot</button>
     <button id="btnFull" type="button">Full screen</button>
-    <button id="btnTailscale" type="button" hidden>Get Tailscale (remote access)</button>
+    <button id="btnTailscale" type="button" hidden>Get Tailscale</button>
   </div>
   <div id="menuBack" hidden><div id="menu" role="dialog" aria-label="Choose camera"></div></div>
 </div>
@@ -477,7 +478,7 @@
     btnCamera.disabled = !st.connected;
     btnTailscale.hidden = viaRemote(); // already remote, so Tailscale is installed here
     btnTorch.disabled = !(st.connected && st.hasTorch);
-    btnTorch.textContent = st.torchOn ? 'Torch off' : 'Torch on';
+    btnTorch.textContent = st.torchOn ? 'Light off' : 'Light on';
     btnSnap.disabled = !st.lastJpeg;
     btnSnapFs.disabled = !st.lastJpeg;
   }

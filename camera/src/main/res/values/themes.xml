@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.BZViewCamera" parent="Theme.Material3.DayNight.NoActionBar" />
+
+    <!-- Less tall buttons than the Material default (which adds 6dp inset above and below). -->
+    <style name="CompactButton" parent="Widget.Material3.Button">
+        <item name="android:minHeight">40dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="CompactOutlinedButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:minHeight">40dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <!-- A slim secondary button (for example the Tailscale shortcut). -->
+    <style name="CompactOutlinedButton.Small">
+        <item name="android:minHeight">30dp</item>
+        <item name="android:paddingLeft">14dp</item>
+        <item name="android:paddingRight">14dp</item>
+        <item name="android:textSize">12sp</item>
+    </style>
 </resources>

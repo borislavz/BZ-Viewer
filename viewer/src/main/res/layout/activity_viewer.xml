@@ -119,9 +119,10 @@
 
         <Button
             android:id="@+id/tailscaleButton"
-            style="@style/ControlButton"
-            android:layout_width="match_parent"
+            style="@style/ControlButton.Small"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:text="@string/get_tailscale" />
     </LinearLayout>
 </FrameLayout>
