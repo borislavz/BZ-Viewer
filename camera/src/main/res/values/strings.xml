@@ -5,6 +5,10 @@
     <string name="stop">Stop</string>
     <string name="camera_button">Camera…</string>
     <string name="exit">Exit</string>
+    <string name="remote_on">Remote access ready (Tailscale %1$s). Viewers use the home Wi-Fi when they can and this address when away.</string>
+    <string name="remote_off">Remote access is off. To watch from outside your home, install Tailscale on this phone and sign in. Viewers then connect automatically.</string>
+    <string name="web_local_label">Same Wi-Fi: %1$s</string>
+    <string name="web_remote_label">Remote: %1$s</string>
     <string name="share_web_link">Share web link</string>
     <string name="web_link_hint">Or open this in any browser on the same Wi-Fi:</string>
     <string name="share_web_link_title">Share web viewer link</string>

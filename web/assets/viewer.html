@@ -97,7 +97,7 @@
 
   var st = {
     connected: false, connectedAt: 0, lastFrameAt: 0, cameraTime: 0,
-    hasTorch: false, torchOn: false, hasFrame: false,
+    hasTorch: false, torchOn: false, hasFrame: false, remoteHost: '',
     lastJpeg: null, lastJpegTime: 0   // the original bytes of the picture on screen
   };
   var stopped = false;
@@ -137,6 +137,20 @@
    * green with the camera phone's capture time while frames arrive, amber while connecting,
    * red when no frame has arrived for a few seconds.
    */
+  /*
+   * The page is loaded from one address, so the connection type follows from that address:
+   * the camera's VPN (Tailscale) address means remote, anything else means the local network.
+   * The camera reports its VPN address in the status text; 100.64.0.0/10 and *.ts.net are
+   * recognised even before that arrives.
+   */
+  function viaRemote() {
+    var h = location.hostname;
+    if (st.remoteHost && h === st.remoteHost) { return true; }
+    if (/\.ts\.net$/i.test(h)) { return true; }
+    var m = /^100\.(\d+)\.\d+\.\d+$/.exec(h);
+    return !!m && +m[1] >= 64 && +m[1] <= 127;
+  }
+
   function updateBadge() {
     if (!token) { badge.hidden = true; return; }
     badge.hidden = false;
@@ -146,7 +160,7 @@
     if (!st.connected) {
       cls = 'wait'; text = 'CONNECTING';
     } else if (haveFrame && t - st.lastFrameAt <= STALL_MS) {
-      cls = 'live'; text = 'LIVE  ' + clock(st.cameraTime);
+      cls = 'live'; text = (viaRemote() ? 'REMOTE' : 'LOCAL') + '  ' + clock(st.cameraTime);
     } else if (!haveFrame && t - st.connectedAt <= STALL_MS) {
       cls = 'wait'; text = 'CONNECTING';
     } else {
@@ -425,12 +439,13 @@
   }
 
   function parseStatus(text) {
-    var info = { torch: false, hasTorch: false, current: null, cameras: [] };
+    var info = { torch: false, hasTorch: false, current: null, remote: '', cameras: [] };
     text.split('\n').forEach(function (raw) {
       var line = raw.trim();
       if (line === 'torch=1') { info.torch = true; }
       else if (line === 'hasTorch=1') { info.hasTorch = true; }
       else if (line.indexOf('current=') === 0) { info.current = line.substring(8) || null; }
+      else if (line.indexOf('remote=') === 0) { info.remote = line.substring(7); }
       else if (line.indexOf('camera=') === 0) {
         var rest = line.substring(7), bar = rest.indexOf('|');
         if (bar > 0) { info.cameras.push({ id: rest.substring(0, bar), label: rest.substring(bar + 1) }); }
@@ -445,6 +460,7 @@
         var info = parseStatus(text);
         st.torchOn = info.torch;
         st.hasTorch = info.hasTorch;
+        st.remoteHost = info.remote || '';
         updateButtons();
       }).catch(function () { /* the next request will try again */ });
     }, delayMs);

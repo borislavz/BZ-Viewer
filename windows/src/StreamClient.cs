@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
@@ -13,19 +14,42 @@ namespace BZView.Viewer
     internal sealed class StreamClient
     {
         private const int MaxFrameBytes = 8 * 1024 * 1024;
+        /// <summary>The camera sends a frame or a keep-alive at least every 2 s, so silence means trouble.</summary>
+        private const int ReadTimeoutMs = 6000;
+        /// <summary>A same-network camera answers at once; if it does not, try the remote route.</summary>
+        private const int LocalConnectMs = 2000;
+        private const int RemoteConnectMs = 7000;
+        private const int SingleRouteConnectMs = 5000;
+        /// <summary>While on the remote route, check this often whether the local one works again.</summary>
+        private const int LocalProbeIntervalMs = 15000;
 
+        /// <summary>Route that last worked, so control commands go there first.</summary>
+        private static volatile string lastGoodRoute;
+
+        /// <summary>Raised just before Connected: true when the remote (VPN) route is in use.</summary>
+        public event Action<bool> RouteChosen;
         public event Action Connected;
         public event Action<byte[], long> FrameReceived;
         public event Action<string> Disconnected;
 
-        private readonly PairingInfo info;
+        private volatile PairingInfo info;
         private volatile bool running;
+        private volatile bool switchingToLocal;
         private volatile TcpClient socket;
         private Thread thread;
 
         public StreamClient(PairingInfo info)
         {
             this.info = info;
+        }
+
+        /// <summary>
+        /// Replaces the pairing details (same camera and code), for example after the camera
+        /// reported a remote address. Takes effect the next time the client connects.
+        /// </summary>
+        public void UpdatePairing(PairingInfo newInfo)
+        {
+            info = newInfo;
         }
 
         public void Start()
@@ -64,26 +88,117 @@ namespace BZView.Viewer
             }
         }
 
+        private static int ConnectTimeout(List<Route> routes, Route route)
+        {
+            if (routes.Count == 1)
+            {
+                return SingleRouteConnectMs;
+            }
+            return route.Remote ? RemoteConnectMs : LocalConnectMs;
+        }
+
+        private static void CloseQuietly(TcpClient tcp)
+        {
+            if (tcp == null)
+            {
+                return;
+            }
+            try
+            {
+                tcp.Close();
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void Sleep(int ms)
+        {
+            for (int waited = 0; running && waited < ms; waited += 100)
+            {
+                Thread.Sleep(100);
+            }
+        }
+
+        /// <summary>
+        /// Each round tries the local route first and then the remote one, so the viewer is back
+        /// on the local network as soon as the PC is home again.
+        /// </summary>
         private void Run()
         {
             int backoffMs = 1000;
             while (running)
             {
-                string reason;
-                bool connected = false;
+                switchingToLocal = false;
+                string reason = "no route";
                 TcpClient tcp = null;
+                Stream input = null;
+                Route used = null;
+                PairingInfo pairing = info;
+                List<Route> routes = pairing.Routes();
+
+                foreach (Route route in routes)
+                {
+                    if (!running)
+                    {
+                        return;
+                    }
+                    TcpClient candidate = null;
+                    try
+                    {
+                        candidate = Open(route, ConnectTimeout(routes, route));
+                        socket = candidate;
+                        candidate.NoDelay = true;
+                        candidate.ReceiveTimeout = ReadTimeoutMs;
+                        NetworkStream ns = candidate.GetStream();
+                        SendRequest(ns, Protocol.PathStream + "?t=" + Uri.EscapeDataString(pairing.Token));
+                        Stream stream = new BufferedStream(ns, 64 * 1024);
+                        // A different device at the same local address (another network) fails here.
+                        ReadStatusAndHeaders(stream);
+                        tcp = candidate;
+                        input = stream;
+                        used = route;
+                        break;
+                    }
+                    catch (Exception e)
+                    {
+                        reason = e.Message;
+                        CloseQuietly(candidate);
+                    }
+                }
+
+                if (tcp == null)
+                {
+                    socket = null;
+                    if (!running)
+                    {
+                        return;
+                    }
+                    RaiseDisconnected("Cannot reach camera (" + reason + ")");
+                    Sleep(backoffMs);
+                    backoffMs = Math.Min(backoffMs * 2, 5000);
+                    continue;
+                }
+
+                if (!running)
+                {
+                    CloseQuietly(tcp);
+                    return;
+                }
+                lastGoodRoute = used.Key;
+                backoffMs = 1000;
+                ManualResetEvent streamEnded = new ManualResetEvent(false);
+                if (used.Remote && !routes[0].Remote)
+                {
+                    StartLocalProbe(tcp, routes[0], pairing.Token, streamEnded);
+                }
                 try
                 {
-                    tcp = Open(info, 5000);
-                    socket = tcp;
-                    tcp.NoDelay = true;
-                    tcp.ReceiveTimeout = 10000;
-                    NetworkStream ns = tcp.GetStream();
-                    SendRequest(ns, Protocol.PathStream + "?t=" + Uri.EscapeDataString(info.Token));
-                    Stream input = new BufferedStream(ns, 64 * 1024);
-                    ReadStatusAndHeaders(input);
-                    connected = true;
-                    backoffMs = 1000;
+                    Action<bool> onRoute = RouteChosen;
+                    if (onRoute != null)
+                    {
+                        onRoute(used.Remote);
+                    }
                     Action onConnected = Connected;
                     if (onConnected != null)
                     {
@@ -98,34 +213,62 @@ namespace BZView.Viewer
                 }
                 finally
                 {
+                    streamEnded.Set();
                     socket = null;
-                    if (tcp != null)
-                    {
-                        try
-                        {
-                            tcp.Close();
-                        }
-                        catch (Exception)
-                        {
-                        }
-                    }
+                    CloseQuietly(tcp);
                 }
 
                 if (!running)
                 {
                     return;
                 }
-                Action<string> onDisconnected = Disconnected;
-                if (onDisconnected != null)
+                if (switchingToLocal)
                 {
-                    onDisconnected(connected ? reason : "Cannot reach camera (" + reason + ")");
+                    RaiseDisconnected("Switching to local network");
+                    continue; // reconnect at once; the local route is tried first
                 }
-                for (int waited = 0; running && waited < backoffMs; waited += 100)
-                {
-                    Thread.Sleep(100);
-                }
+                RaiseDisconnected(reason);
+                Sleep(backoffMs);
                 backoffMs = Math.Min(backoffMs * 2, 5000);
             }
+        }
+
+        private void RaiseDisconnected(string reason)
+        {
+            Action<string> onDisconnected = Disconnected;
+            if (onDisconnected != null)
+            {
+                onDisconnected(reason);
+            }
+        }
+
+        /// <summary>While streaming over the remote route, notices when the local route works again.</summary>
+        private void StartLocalProbe(TcpClient current, Route local, string token, ManualResetEvent streamEnded)
+        {
+            Thread probe = new Thread(delegate()
+            {
+                while (!streamEnded.WaitOne(LocalProbeIntervalMs))
+                {
+                    if (!running)
+                    {
+                        return;
+                    }
+                    try
+                    {
+                        SendCommand(local, token, Protocol.CmdStatus, null, 1200);
+                    }
+                    catch (Exception)
+                    {
+                        continue; // still away from home
+                    }
+                    switchingToLocal = true;
+                    CloseQuietly(current);
+                    return;
+                }
+            });
+            probe.IsBackground = true;
+            probe.Name = "bzview-route-probe";
+            probe.Start();
         }
 
         private void ReadFrames(Stream input)
@@ -195,15 +338,53 @@ namespace BZView.Viewer
             }
         }
 
-        /// <summary>Sends one control command and returns the camera's status text.</summary>
+        /// <summary>
+        /// Sends one control command and returns the camera's status text. Uses the route that
+        /// last worked first, then the other one.
+        /// </summary>
         public static string SendCommand(PairingInfo info, string name, string arg)
         {
-            using (TcpClient tcp = Open(info, 4000))
+            List<Route> routes = info.Routes();
+            string good = lastGoodRoute;
+            if (good != null)
             {
-                tcp.ReceiveTimeout = 4000;
+                for (int i = 1; i < routes.Count; i++)
+                {
+                    if (routes[i].Key == good)
+                    {
+                        Route r = routes[i];
+                        routes.RemoveAt(i);
+                        routes.Insert(0, r);
+                        break;
+                    }
+                }
+            }
+            Exception last = null;
+            foreach (Route route in routes)
+            {
+                int connectMs = routes.Count == 1 ? 4000 : (route.Remote ? 6000 : 2000);
+                try
+                {
+                    string body = SendCommand(route, info.Token, name, arg, connectMs);
+                    lastGoodRoute = route.Key;
+                    return body;
+                }
+                catch (Exception e)
+                {
+                    last = e;
+                }
+            }
+            throw last ?? new IOException("No route");
+        }
+
+        private static string SendCommand(Route route, string token, string name, string arg, int connectMs)
+        {
+            using (TcpClient tcp = Open(route, connectMs))
+            {
+                tcp.ReceiveTimeout = Math.Max(4000, connectMs);
                 tcp.SendTimeout = 4000;
                 NetworkStream ns = tcp.GetStream();
-                string path = Protocol.PathCommand + "?t=" + Uri.EscapeDataString(info.Token)
+                string path = Protocol.PathCommand + "?t=" + Uri.EscapeDataString(token)
                         + "&name=" + Uri.EscapeDataString(name)
                         + (arg != null ? "&arg=" + Uri.EscapeDataString(arg) : "");
                 SendRequest(ns, path);
@@ -222,12 +403,12 @@ namespace BZView.Viewer
             }
         }
 
-        private static TcpClient Open(PairingInfo info, int timeoutMs)
+        private static TcpClient Open(Route route, int timeoutMs)
         {
             TcpClient client = new TcpClient();
             try
             {
-                IAsyncResult result = client.BeginConnect(info.Host, info.Port, null, null);
+                IAsyncResult result = client.BeginConnect(route.Host, route.Port, null, null);
                 if (!result.AsyncWaitHandle.WaitOne(timeoutMs))
                 {
                     client.Close();

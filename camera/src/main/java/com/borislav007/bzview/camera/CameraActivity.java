@@ -46,6 +46,7 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
     private ImageView qrView;
     private TextView statusText;
     private TextView addressText;
+    private TextView remoteText;
     private TextView webHintText;
     private TextView webAddressText;
     private MaterialButton shareWebButton;
@@ -101,6 +102,7 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         toggleButton.setOnClickListener(v -> onToggleClicked());
         cameraButton = findViewById(R.id.cameraButton);
         cameraButton.setOnClickListener(v -> showCameraPicker());
+        remoteText = findViewById(R.id.remoteText);
         webHintText = findViewById(R.id.webHintText);
         webAddressText = findViewById(R.id.webAddressText);
         shareWebButton = findViewById(R.id.shareWebButton);
@@ -109,14 +111,28 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         refresh();
     }
 
+    /** Notices when Wi-Fi or the VPN (Tailscale) comes or goes while the screen is open. */
+    private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable addressTick = new Runnable() {
+        @Override
+        public void run() {
+            if (service != null) {
+                service.refreshAddress();
+            }
+            ui.postDelayed(this, 5000);
+        }
+    };
+
     @Override
     protected void onStart() {
         super.onStart();
+        ui.postDelayed(addressTick, 5000);
         bindService(new Intent(this, StreamService.class), connection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
     protected void onStop() {
+        ui.removeCallbacks(addressTick);
         if (service != null) {
             service.removeListener(this);
             service = null;
@@ -186,12 +202,36 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         }
     }
 
+    /** Setting selectable text again would drop the user's selection. */
+    private static void setTextIfChanged(TextView view, String text) {
+        if (!text.contentEquals(view.getText())) {
+            view.setText(text);
+        }
+    }
+
+    /** One line per way to reach the web viewer: same Wi-Fi, and remote when a VPN is connected. */
+    private String webLinks(String local, String remote) {
+        StringBuilder sb = new StringBuilder();
+        if (local != null) {
+            sb.append(remote != null ? getString(R.string.web_local_label, local) : local);
+        }
+        if (remote != null) {
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append(getString(R.string.web_remote_label, remote));
+        }
+        return sb.toString();
+    }
+
     private void shareWebLink() {
         StreamService s = service;
-        String web = s != null && s.isStreaming() ? s.getWebUri() : null;
-        if (web == null) {
+        String local = s != null && s.isStreaming() ? s.getWebUri() : null;
+        String remote = s != null && s.isStreaming() ? s.getRemoteWebUri() : null;
+        if (local == null && remote == null) {
             return;
         }
+        String web = webLinks(local, remote);
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");
         send.putExtra(Intent.EXTRA_TEXT, web);
@@ -248,20 +288,29 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
                 shownUri = uri;
             }
             qrView.setVisibility(View.VISIBLE);
-            addressText.setText(uri);
+            setTextIfChanged(addressText, uri);
             addressText.setVisibility(View.VISIBLE);
         } else {
             shownUri = null;
             qrView.setVisibility(View.GONE);
             addressText.setVisibility(View.GONE);
         }
+        String remote = streaming ? s.getRemoteHost() : null;
+        if (streaming) {
+            setTextIfChanged(remoteText, remote != null ? getString(R.string.remote_on, remote)
+                    : getString(R.string.remote_off));
+            remoteText.setVisibility(View.VISIBLE);
+        } else {
+            remoteText.setVisibility(View.GONE);
+        }
         String web = streaming ? s.getWebUri() : null;
-        int webVisibility = web != null ? View.VISIBLE : View.GONE;
+        String remoteWeb = streaming ? s.getRemoteWebUri() : null;
+        int webVisibility = (web != null || remoteWeb != null) ? View.VISIBLE : View.GONE;
         webHintText.setVisibility(webVisibility);
         webAddressText.setVisibility(webVisibility);
         shareWebButton.setVisibility(webVisibility);
-        if (web != null) {
-            webAddressText.setText(web);
+        if (webVisibility == View.VISIBLE) {
+            setTextIfChanged(webAddressText, webLinks(web, remoteWeb));
         }
         if (!streaming) {
             previewView.setImageDrawable(null);

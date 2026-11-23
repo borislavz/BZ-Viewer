@@ -49,6 +49,8 @@ namespace BZView.Viewer
         private PairingInfo info;
         private StreamClient client;
         private bool connected;
+        /// <summary>True while the stream comes over the remote (VPN) route instead of the local network.</summary>
+        private volatile bool viaRemote;
         private bool hasTorch;
         private bool torchOn;
         private bool fullscreen;
@@ -272,12 +274,14 @@ namespace BZView.Viewer
                     }
                     connected = true;
                     connectedAtMs = clock.ElapsedMilliseconds;
-                    SetStatus("Connected to " + host);
+                    string where = viaRemote && info != null && info.RemoteHost != null ? info.RemoteHost : host;
+                    SetStatus("Connected to " + where + (viaRemote ? " (remote)" : " (local network)"));
                     UpdateButtons();
                     UpdateBadge();
                     FetchStatus(0);
                 });
             };
+            c.RouteChosen += delegate(bool remote) { viaRemote = remote; };
             c.FrameReceived += delegate(byte[] jpeg, long cameraTimeMs) { OnFrameBytes(c, jpeg, cameraTimeMs); };
             c.Disconnected += delegate(string reason)
             {
@@ -474,7 +478,7 @@ namespace BZView.Viewer
                         ? new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(lastCameraTimeMs).ToLocalTime()
                         : DateTime.Now;
                 color = LiveColor;
-                text = "LIVE  " + t.ToString("HH:mm:ss");
+                text = (viaRemote ? "REMOTE  " : "LOCAL  ") + t.ToString("HH:mm:ss");
             }
             else if (!haveFrame && now - connectedAtMs <= StallMs)
             {
@@ -520,6 +524,18 @@ namespace BZView.Viewer
 
         private void ApplyStatus(string status)
         {
+            // The camera reports its remote (Tailscale) address; remember it for the fallback route.
+            PairingInfo learned = info != null ? info.WithReportedRemote(status) : null;
+            if (learned != null)
+            {
+                info = learned;
+                Settings.Address = learned.ToUri();
+                Settings.Save();
+                if (client != null)
+                {
+                    client.UpdatePairing(learned);
+                }
+            }
             bool torch = false;
             bool flash = false;
             foreach (string line in status.Split('\n'))
@@ -700,6 +716,7 @@ namespace BZView.Viewer
         private void SetStatus(string text)
         {
             statusLabel.Text = text;
+            Text = "BZ View Viewer - " + text;
         }
 
         /// <summary>Runs the action on the UI thread (safe to call from any thread).</summary>

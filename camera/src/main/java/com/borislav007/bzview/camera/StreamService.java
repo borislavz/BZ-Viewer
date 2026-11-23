@@ -192,21 +192,48 @@ public class StreamService extends LifecycleService {
     /** Address viewers must enter or scan, or null when there is no network address. */
     @Nullable
     public String getPairingUri() {
-        String h = host;
-        if (!streaming || h == null) {
-            return null;
-        }
-        return new PairingInfo(h, Protocol.DEFAULT_PORT, token).toUri();
+        PairingInfo p = pairingInfo();
+        return p == null ? null : p.toUri();
     }
 
-    /** Address that opens the web viewer in any browser, or null when there is no network address. */
+    /** Web viewer address for the same Wi-Fi, or null when there is no network address. */
     @Nullable
     public String getWebUri() {
-        String h = host;
-        if (!streaming || h == null) {
+        PairingInfo p = pairingInfo();
+        return p == null ? null : p.toWebUrl();
+    }
+
+    /** Web viewer address through the VPN, or null when the phone has no VPN address. */
+    @Nullable
+    public String getRemoteWebUri() {
+        PairingInfo p = pairingInfo();
+        return p == null ? null : p.toRemoteWebUrl();
+    }
+
+    /** This phone's VPN (Tailscale) address, or null when it is not connected to one. */
+    @Nullable
+    public String getRemoteHost() {
+        return streaming ? NetUtil.vpnIpv4() : null;
+    }
+
+    /**
+     * Local address plus, when a VPN is connected, the remote address. Without Wi-Fi but with a
+     * VPN the remote address is used on its own.
+     */
+    @Nullable
+    private PairingInfo pairingInfo() {
+        if (!streaming) {
             return null;
         }
-        return new PairingInfo(h, Protocol.DEFAULT_PORT, token).toWebUrl();
+        String local = host;
+        String remote = NetUtil.vpnIpv4();
+        if (local == null && remote == null) {
+            return null;
+        }
+        if (local == null) {
+            return new PairingInfo(remote, Protocol.DEFAULT_PORT, token);
+        }
+        return new PairingInfo(local, Protocol.DEFAULT_PORT, token, remote, Protocol.DEFAULT_PORT);
     }
 
     private byte[] loadViewerPage() {
@@ -515,6 +542,10 @@ public class StreamService extends LifecycleService {
                 .append("\nhasTorch=").append(hasTorch ? 1 : 0)
                 .append("\nviewers=").append(viewerCount)
                 .append("\ncurrent=").append(activeId == null ? "" : activeId);
+        String remote = NetUtil.vpnIpv4();
+        if (remote != null) {
+            sb.append("\nremote=").append(remote);
+        }
         for (CameraOption c : cameras) {
             sb.append("\ncamera=").append(c.id).append('|').append(c.label);
         }

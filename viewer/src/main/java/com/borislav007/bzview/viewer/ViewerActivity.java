@@ -98,6 +98,8 @@ public class ViewerActivity extends AppCompatActivity {
 
     private PairingInfo info;
     private MjpegClient client;
+    /** True while the stream comes over the remote (VPN) route instead of the local network. */
+    private volatile boolean viaRemote;
     private boolean connected;
     private boolean hasTorch;
     private boolean torchOn;
@@ -235,11 +237,18 @@ public class ViewerActivity extends AppCompatActivity {
         showStatus(getString(R.string.connecting_to, info.host), false);
         client = new MjpegClient(info, new MjpegClient.Listener() {
             @Override
+            public void onRouteChosen(boolean remote) {
+                viaRemote = remote;
+            }
+
+            @Override
             public void onConnected() {
                 connectedAtMs = SystemClock.elapsedRealtime();
                 runOnUiThread(() -> {
                     connected = true;
-                    showStatus(getString(R.string.connected_to, info != null ? info.host : ""), true);
+                    String where = info == null ? ""
+                            : (viaRemote && info.remoteHost != null ? info.remoteHost : info.host);
+                    showStatus(getString(R.string.connected_to, where), true);
                     updateButtons();
                     fetchStatus(0);
                 });
@@ -368,6 +377,19 @@ public class ViewerActivity extends AppCompatActivity {
     }
 
     private void parseStatus(String text) {
+        final PairingInfo learned = info != null ? info.withReportedRemote(text) : null;
+        if (learned != null) {
+            runOnUiThread(() -> {
+                if (info == null) {
+                    return;
+                }
+                info = learned; // the camera told us its remote (Tailscale) address
+                getPreferences().edit().putString(KEY_URI, learned.toUri()).apply();
+                if (client != null) {
+                    client.updatePairing(learned);
+                }
+            });
+        }
         boolean torch = false;
         boolean flash = false;
         for (String line : text.split("\n")) {
@@ -427,7 +449,8 @@ public class ViewerActivity extends AppCompatActivity {
         } else if (haveFrame && now - lastFrame <= STALL_MS) {
             long t = lastCameraTimeMs > 0 ? lastCameraTimeMs : System.currentTimeMillis();
             color = COLOR_LIVE;
-            text = getString(R.string.badge_live) + "  " + clockFormat.format(new Date(t));
+            text = getString(viaRemote ? R.string.badge_remote : R.string.badge_local)
+                    + "  " + clockFormat.format(new Date(t));
         } else if (!haveFrame && now - since <= STALL_MS) {
             color = COLOR_WAIT;
             text = getString(R.string.badge_connecting);

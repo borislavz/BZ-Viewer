@@ -25,8 +25,13 @@ You can also start it with the address as an argument: `BZ-View-Viewer.exe bzvie
 | Forget | Forget the saved camera |
 | Mouse wheel / drag / double-click | Zoom, pan while zoomed, zoom in or reset |
 
-The badge at the top shows the stream is alive: green `LIVE` with the camera phone's clock,
+The badge at the top shows the stream is alive: a green dot with the connection type (`LOCAL` on
+the home network, `REMOTE` over Tailscale) and the camera phone's clock,
 amber `CONNECTING`, red `NO VIDEO` when no frame has arrived for a few seconds.
+
+The viewer always tries the local network first and falls back to the remote (Tailscale) address.
+While on remote it checks every 15 seconds and switches back to local as soon as it is reachable.
+See the main README for the one-time Tailscale setup.
 
 Settings are stored in `%APPDATA%\BZ View Viewer\settings.txt`.
 
