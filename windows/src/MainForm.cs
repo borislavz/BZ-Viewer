@@ -42,6 +42,7 @@ namespace BZView.Viewer
         private Button folderButton;
         private Button fullscreenButton;
         private Button forgetButton;
+        private Button tailscaleButton;
         private Button exitButton;
         private ToolStripMenuItem menuBright;
         private ToolStripMenuItem menuFullscreen;
@@ -143,6 +144,7 @@ namespace BZView.Viewer
             snapshotButton = MakeButton("Snapshot (Ctrl+S)", delegate { SaveSnapshot(); });
             folderButton = MakeButton("Snapshots folder", delegate { OpenSnapshotFolder(); });
             fullscreenButton = MakeButton("Full screen (F11)", delegate { SetFullscreen(!fullscreen); });
+            tailscaleButton = MakeButton("Get Tailscale (remote access)", delegate { OpenTailscaleDownload(); });
             forgetButton = MakeButton("Forget", delegate { ForgetCamera(); });
             exitButton = MakeButton("Exit", delegate { Close(); });
         }
@@ -427,6 +429,19 @@ namespace BZView.Viewer
             {
                 SetStatus("Could not save the snapshot: " + e.Message);
                 view.ShowToast("Could not save snapshot");
+            }
+        }
+
+        /// <summary>Opens the Tailscale download page (needed on this PC for remote access).</summary>
+        private void OpenTailscaleDownload()
+        {
+            try
+            {
+                Process.Start("https://tailscale.com/download/windows");
+            }
+            catch (Exception e)
+            {
+                SetStatus("Could not open the browser: " + e.Message);
             }
         }
 

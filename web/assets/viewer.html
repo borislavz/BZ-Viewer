@@ -73,6 +73,7 @@
     <button id="btnBright" type="button">Bright</button>
     <button id="btnSnap" type="button" disabled>Snapshot</button>
     <button id="btnFull" type="button">Full screen</button>
+    <button id="btnTailscale" type="button" hidden>Get Tailscale (remote access)</button>
   </div>
   <div id="menuBack" hidden><div id="menu" role="dialog" aria-label="Choose camera"></div></div>
 </div>
@@ -86,6 +87,7 @@
   var badge = $('badge'), badgeText = $('badgeText'), messageEl = $('message'), statusEl = $('status');
   var btnCamera = $('btnCamera'), btnTorch = $('btnTorch'), btnBright = $('btnBright');
   var btnFull = $('btnFull'), btnExitFs = $('btnExitFs');
+  var btnTailscale = $('btnTailscale');
   var btnSnap = $('btnSnap'), btnSnapFs = $('btnSnapFs'), flashEl = $('flash');
   var menuBack = $('menuBack'), menu = $('menu');
 
@@ -473,6 +475,7 @@
 
   function updateButtons() {
     btnCamera.disabled = !st.connected;
+    btnTailscale.hidden = viaRemote(); // already remote, so Tailscale is installed here
     btnTorch.disabled = !(st.connected && st.hasTorch);
     btnTorch.textContent = st.torchOn ? 'Torch off' : 'Torch on';
     btnSnap.disabled = !st.lastJpeg;
@@ -574,6 +577,9 @@
     }
   }
   btnFull.addEventListener('click', toggleFullscreen);
+  btnTailscale.addEventListener('click', function () {
+    window.open('https://tailscale.com/download', '_blank', 'noopener,noreferrer');
+  });
   btnExitFs.addEventListener('click', toggleFullscreen);
   function onFullscreenChange() {
     app.classList.toggle('fs', !!fullscreenElement());
