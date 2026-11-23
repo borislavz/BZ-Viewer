@@ -1,0 +1,7 @@
+# go2rtc download and everything generated from the private camera list
+bin/
+go2rtc.yaml
+www/cameras.json
+cameras.txt
+cameras.*.txt
+!cameras.example.txt

@@ -37,6 +37,10 @@ How it behaves:
 * While on remote, the viewer checks the local network every 15 s and switches back when you are home again.
 * The web viewer is served from one address, so it cannot switch by itself. It shows `LOCAL` or `REMOTE` according to the address it was opened on; the camera screen lists both web links ("Same Wi-Fi" and "Remote"), and the remote one needs Tailscale on that device.
 
+## Tapo cameras
+
+`tapo-web/` is a separate local-network web viewer for Tapo cameras (C210, C120 and others). See `tapo-web/README.md`.
+
 ## Features in version 1
 
 * Live video from the camera phone to the viewer phone

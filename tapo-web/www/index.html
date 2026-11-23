@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Cameras</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #000; color: #fff;
+    font: 15px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #top { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #14141a; }
+  #top h1 { margin: 0; font-size: 17px; }
+  #top span { color: #999; font-size: 13px; }
+  #grid { display: grid; gap: 8px; padding: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); }
+  .tile { position: relative; background: #111; border-radius: 10px; overflow: hidden;
+    aspect-ratio: 16 / 9; cursor: pointer; }
+  .tile video-stream { display: block; width: 100%; height: 100%; }
+  .tile video { object-fit: contain; background: #000; }
+  .tile .name { position: absolute; left: 10px; bottom: 8px; padding: 3px 9px; border-radius: 8px;
+    background: rgba(0, 0, 0, .6); font-weight: 600; pointer-events: none; }
+  .tile .tools { position: absolute; top: 8px; left: 8px; right: 8px; display: none;
+    justify-content: space-between; pointer-events: none; }
+  .tile button { pointer-events: auto; font: inherit; font-weight: 700; color: #fff; background: rgba(57, 73, 171, .9);
+    border: 1px solid #7986cb; border-radius: 8px; padding: 4px 12px; cursor: pointer; }
+  .tile button:hover { background: #5c6bc0; }
+  body.focus #top { display: none; }
+  body.focus #grid { display: block; padding: 0; }
+  .tile.hidden { display: none; }
+  .tile.focused { position: fixed; inset: 0; z-index: 5; border-radius: 0; aspect-ratio: auto;
+    background: #000; cursor: default; }
+  .tile.focused .tools { display: flex; }
+  .tile.focused .name { bottom: calc(10px + env(safe-area-inset-bottom)); }
+  #empty { padding: 24px; color: #bbb; text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="top"><h1>Cameras</h1><span>Tap a camera for the full-size picture</span></div>
+<main id="grid"></main>
+<div id="empty" hidden>No cameras found. Edit cameras.txt and start the viewer again.</div>
+
+<script type="module">
+import './video-stream.js';
+
+/*
+ * One tile per camera. The grid uses the camera's standard-quality stream (light on the network);
+ * tapping a tile opens it full size on the high-quality stream and stops the others.
+ * Streams are WebRTC or MSE from go2rtc, falling back to MJPEG when the camera only offers that.
+ */
+var grid = document.getElementById('grid');
+var tiles = [];
+var focused = null;
+
+function createPlayer(tile, streamId) {
+  var p = document.createElement('video-stream');
+  p.media = 'video';
+  // Local network only: no public STUN servers needed.
+  p.pcConfig = { bundlePolicy: 'max-bundle', iceServers: [], sdpSemantics: 'unified-plan' };
+  tile.el.insertBefore(p, tile.el.firstChild);
+  p.video.controls = false;
+  p.video.muted = true;
+  p.src = new URL('api/ws?src=' + encodeURIComponent(streamId), location.href);
+  tile.player = p;
+}
+
+function destroyPlayer(tile) {
+  if (!tile.player) { return; }
+  tile.player.ondisconnect();
+  tile.player.remove();
+  tile.player = null;
+}
+
+function setFocus(tile) {
+  if (focused === tile) { return; }
+  focused = tile;
+  document.body.classList.add('focus');
+  tiles.forEach(function (t) {
+    if (t !== tile) { destroyPlayer(t); t.el.classList.add('hidden'); }
+  });
+  tile.el.classList.add('focused');
+  destroyPlayer(tile);
+  createPlayer(tile, tile.cam.id);
+  window.scrollTo(0, 0);
+}
+
+function clearFocus() {
+  if (!focused) { return; }
+  if (document.fullscreenElement) { document.exitFullscreen(); }
+  var tile = focused;
+  focused = null;
+  document.body.classList.remove('focus');
+  tile.el.classList.remove('focused');
+  tiles.forEach(function (t) {
+    t.el.classList.remove('hidden');
+    destroyPlayer(t);
+    createPlayer(t, t.cam.sd);
+  });
+}
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) { document.exitFullscreen(); }
+  else if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen(); }
+}
+
+function addTile(cam) {
+  var el = document.createElement('div');
+  el.className = 'tile';
+  var name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = cam.name;
+  var tools = document.createElement('div');
+  tools.className = 'tools';
+  var back = document.createElement('button');
+  back.type = 'button';
+  back.textContent = 'Back';
+  back.addEventListener('click', function (e) { e.stopPropagation(); clearFocus(); });
+  var full = document.createElement('button');
+  full.type = 'button';
+  full.textContent = 'Full screen';
+  full.addEventListener('click', function (e) { e.stopPropagation(); toggleFullscreen(); });
+  tools.appendChild(back);
+  tools.appendChild(full);
+  el.appendChild(tools);
+  el.appendChild(name);
+  grid.appendChild(el);
+
+  var tile = { cam: cam, el: el, player: null };
+  tiles.push(tile);
+  el.addEventListener('click', function () { setFocus(tile); });
+  createPlayer(tile, cam.sd);
+}
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') { clearFocus(); }
+  else if ((e.key === 'f' || e.key === 'F') && focused) { toggleFullscreen(); }
+});
+
+fetch('cameras.json', { cache: 'no-store' })
+  .then(function (r) { return r.json(); })
+  .then(function (cams) {
+    if (!cams.length) { document.getElementById('empty').hidden = false; return; }
+    cams.forEach(addTile);
+  })
+  .catch(function () { document.getElementById('empty').hidden = false; });
+</script>
+</body>
+</html>

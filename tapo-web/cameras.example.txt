@@ -1,0 +1,18 @@
+# Camera list for the Tapo web viewer. Save this as cameras.txt (start.ps1 does that for you).
+# Lines starting with # are ignored.
+
+# Port of the web page (open http://localhost:1984/).
+port = 1984
+
+# Optional: ask for a user name and password in the browser.
+# login = viewer, choose-a-password
+
+# Cameras:   Name = camera IP address, camera account user, camera account password
+#
+# The camera account is NOT your Tapo cloud login. Create it in the Tapo app:
+# camera > settings (gear) > Advanced Settings > Camera Account.
+Living room = 192.168.1.50, camera-user, camera-password
+Hallway = 192.168.1.51, camera-user, camera-password
+
+# Any other RTSP camera: paste its full stream address instead.
+# Garage = rtsp://user:password@192.168.1.60:554/stream1
