@@ -15,3 +15,6 @@ keystore.properties
 .DS_Store
 release-artifacts/
 gradle/wrapper/gradle-*-bin.zip
+
+# Windows viewer build output
+windows/dist/

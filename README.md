@@ -4,6 +4,7 @@ Turn two Android phones into a home camera system, similar to Alfred Camera.
 
 * **BZ View Camera** (`:camera`, `com.borislav007.bzview.camera`) runs on Phone 1. It streams live video and shows a pairing QR code.
 * **BZ View Viewer** (`:viewer`, `com.borislav007.bzview.viewer`) runs on Phone 2. It scans the QR code and shows the live video.
+* **BZ View Viewer for Windows** (`windows/`) is a PC viewer that connects by typing the camera's address, for computers without a camera. See [windows/README.md](windows/README.md).
 * `:core` holds the shared code: pairing address format, the streaming server and client, QR generation, network helpers.
 
 ## How it works (version 1)
