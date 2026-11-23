@@ -46,6 +46,9 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
     private ImageView qrView;
     private TextView statusText;
     private TextView addressText;
+    private TextView webHintText;
+    private TextView webAddressText;
+    private MaterialButton shareWebButton;
     private TextView viewersText;
     private MaterialButton toggleButton;
     private MaterialButton cameraButton;
@@ -98,6 +101,10 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         toggleButton.setOnClickListener(v -> onToggleClicked());
         cameraButton = findViewById(R.id.cameraButton);
         cameraButton.setOnClickListener(v -> showCameraPicker());
+        webHintText = findViewById(R.id.webHintText);
+        webAddressText = findViewById(R.id.webAddressText);
+        shareWebButton = findViewById(R.id.shareWebButton);
+        shareWebButton.setOnClickListener(v -> shareWebLink());
         findViewById(R.id.exitButton).setOnClickListener(v -> exitApp());
         refresh();
     }
@@ -179,6 +186,18 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
         }
     }
 
+    private void shareWebLink() {
+        StreamService s = service;
+        String web = s != null && s.isStreaming() ? s.getWebUri() : null;
+        if (web == null) {
+            return;
+        }
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, web);
+        startActivity(Intent.createChooser(send, getString(R.string.share_web_link_title)));
+    }
+
     private void showCameraPicker() {
         final StreamService s = service;
         if (s == null || !s.isStreaming()) {
@@ -235,6 +254,14 @@ public class CameraActivity extends AppCompatActivity implements StreamService.L
             shownUri = null;
             qrView.setVisibility(View.GONE);
             addressText.setVisibility(View.GONE);
+        }
+        String web = streaming ? s.getWebUri() : null;
+        int webVisibility = web != null ? View.VISIBLE : View.GONE;
+        webHintText.setVisibility(webVisibility);
+        webAddressText.setVisibility(webVisibility);
+        shareWebButton.setVisibility(webVisibility);
+        if (web != null) {
+            webAddressText.setText(web);
         }
         if (!streaming) {
             previewView.setImageDrawable(null);

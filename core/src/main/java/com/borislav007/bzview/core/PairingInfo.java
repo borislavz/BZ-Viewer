@@ -23,6 +23,11 @@ public final class PairingInfo {
         return Protocol.SCHEME + "://" + host + ":" + port + "/" + token;
     }
 
+    /** Address that opens the web viewer in any browser, e.g. http://192.168.1.20:8765/?t=ab12cd34 */
+    public String toWebUrl() {
+        return "http://" + host + ":" + port + Protocol.PATH_ROOT + "?t=" + token;
+    }
+
     /** Returns null when the text is not a valid pairing address. */
     public static PairingInfo parse(String text) {
         if (text == null) {

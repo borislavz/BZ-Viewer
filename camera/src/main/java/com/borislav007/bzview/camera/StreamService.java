@@ -199,6 +199,30 @@ public class StreamService extends LifecycleService {
         return new PairingInfo(h, Protocol.DEFAULT_PORT, token).toUri();
     }
 
+    /** Address that opens the web viewer in any browser, or null when there is no network address. */
+    @Nullable
+    public String getWebUri() {
+        String h = host;
+        if (!streaming || h == null) {
+            return null;
+        }
+        return new PairingInfo(h, Protocol.DEFAULT_PORT, token).toWebUrl();
+    }
+
+    private byte[] loadViewerPage() {
+        try (java.io.InputStream in = getAssets().open("viewer.html")) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+            return out.toByteArray();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
     public void refreshAddress() {
         host = NetUtil.localIpv4();
         if (streaming) {
@@ -246,6 +270,7 @@ public class StreamService extends LifecycleService {
                 return handleCommand(name, arg);
             }
         });
+        server.setViewerPage(loadViewerPage());
         try {
             server.start();
         } catch (IOException e) {

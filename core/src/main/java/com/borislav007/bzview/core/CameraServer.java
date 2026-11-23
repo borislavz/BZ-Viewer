@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <ul>
  *   <li>GET /stream?t=TOKEN - endless multipart/x-mixed-replace (MJPEG) video stream</li>
  *   <li>GET /cmd?t=TOKEN&amp;name=NAME&amp;arg=ARG - remote control, replies with status text</li>
+ *   <li>GET /?t=TOKEN (or /view?t=TOKEN) - the web viewer page, so any browser can watch</li>
  * </ul>
  */
 public final class CameraServer {
@@ -51,6 +52,12 @@ public final class CameraServer {
     private byte[] latestFrame;
     private long frameSeq;
     private long latestFrameTimeMs;
+    private volatile byte[] viewerPage;
+
+    /** The HTML (UTF-8) of the web viewer; null disables the page. */
+    public void setViewerPage(byte[] html) {
+        viewerPage = html;
+    }
 
     public CameraServer(int port, String token, Listener listener) {
         this.port = port;
@@ -156,11 +163,16 @@ public final class CameraServer {
             int q = target.indexOf('?');
             String path = q < 0 ? target : target.substring(0, q);
             Map<String, String> query = parseQuery(q < 0 ? "" : target.substring(q + 1));
+            boolean isPage = Protocol.PATH_ROOT.equals(path) || Protocol.PATH_VIEWER.equals(path);
             if (!tokenMatches(query.get("t"))) {
-                respond(out, 403, "Forbidden");
+                respond(out, 403, isPage
+                        ? "Forbidden. Open the full web address shown on the camera phone; it ends with ?t=<code>."
+                        : "Forbidden");
                 return;
             }
-            if (Protocol.PATH_STREAM.equals(path)) {
+            if (isPage) {
+                servePage(out);
+            } else if (Protocol.PATH_STREAM.equals(path)) {
                 stream(out);
             } else if (Protocol.PATH_COMMAND.equals(path)) {
                 String body = listener.onCommand(query.getOrDefault("name", ""), query.get("arg"));
@@ -231,6 +243,28 @@ public final class CameraServer {
         } finally {
             listener.onViewerCountChanged(viewers.decrementAndGet());
         }
+    }
+
+    private void servePage(OutputStream out) throws IOException {
+        byte[] page = viewerPage;
+        if (page == null) {
+            respond(out, 404, "Web viewer not available");
+            return;
+        }
+        out.write(("HTTP/1.1 200 OK\r\n"
+                + "Content-Type: text/html; charset=utf-8\r\n"
+                + "Content-Length: " + page.length + "\r\n"
+                + "Cache-Control: no-store\r\n"
+                + "Referrer-Policy: no-referrer\r\n"
+                + "X-Content-Type-Options: nosniff\r\n"
+                // The page is self-contained: it may only talk to the camera it came from.
+                + "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; "
+                + "style-src 'unsafe-inline'; img-src data: blob:; connect-src 'self'; "
+                + "base-uri 'none'; form-action 'none'; frame-ancestors 'none'\r\n"
+                + "Connection: close\r\n"
+                + "\r\n").getBytes(StandardCharsets.ISO_8859_1));
+        out.write(page);
+        out.flush();
     }
 
     private boolean tokenMatches(String given) {

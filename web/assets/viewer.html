@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<title>BZ View</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%234f378b'/%3E%3Cellipse cx='32' cy='32' rx='23' ry='12' fill='%23fff'/%3E%3Ccircle cx='32' cy='32' r='9' fill='%234f378b'/%3E%3Ccircle cx='32' cy='32' r='3' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden;
+    font: 15px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #app { position: fixed; inset: 0; display: flex; flex-direction: column; background: #000; }
+  #stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none;
+    user-select: none; -webkit-user-select: none; }
+  #video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+    transform-origin: 50% 50%; will-change: transform; }
+  #message { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; color: #bbb; font-size: 18px; white-space: pre-line;
+    pointer-events: none; }
+  #badge { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%;
+    transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 5px 14px;
+    border-radius: 999px; background: rgba(0, 0, 0, .8); white-space: nowrap; pointer-events: none;
+    font: 700 15px/1.2 ui-monospace, Consolas, Menlo, monospace; }
+  #badge i { width: 10px; height: 10px; border-radius: 50%; background: #888; display: inline-block; }
+  #badge.live i { background: #4caf50; }
+  #badge.wait i { background: #ffb300; }
+  #badge.stalled i { background: #f44336; }
+  #status { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 6px 10px;
+    border-radius: 8px; background: rgba(0, 0, 0, .65); font-size: 14px; pointer-events: none; }
+  #bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    background: rgba(20, 20, 24, .96); }
+  button { font: inherit; font-weight: 700; color: #fff; background: #3949ab; border: 1px solid #7986cb;
+    border-radius: 12px; padding: 11px 12px; cursor: pointer; }
+  button:hover { background: #5c6bc0; }
+  button:active { background: #283593; }
+  button:disabled { background: #464646; border-color: #555; color: #999; cursor: default; }
+  button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  #bar button { flex: 1 1 90px; }
+  #btnExitFs { position: absolute; top: calc(8px + env(safe-area-inset-top)); right: 8px; display: none;
+    background: rgba(0, 0, 0, .65); }
+  .fs #bar { display: none; }
+  .fs #btnExitFs { display: block; }
+  #menuBack { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); display: flex;
+    align-items: center; justify-content: center; padding: 16px; }
+  #menu { background: #26262c; border-radius: 14px; padding: 8px; min-width: 260px; max-width: 100%;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .6); }
+  #menu h2 { margin: 8px 10px 10px; font-size: 16px; }
+  #menu button { display: block; width: 100%; text-align: left; margin: 4px 0; font-weight: 600; }
+  #menu button.current::before { content: "\2713  "; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="video" width="16" height="9"></canvas>
+    <div id="message"></div>
+    <div id="badge" class="wait" hidden><i></i><span id="badgeText">CONNECTING</span></div>
+    <div id="status" hidden></div>
+    <button id="btnExitFs" type="button">Exit full screen</button>
+  </div>
+  <div id="bar">
+    <button id="btnCamera" type="button" disabled>Camera</button>
+    <button id="btnTorch" type="button" disabled>Torch on</button>
+    <button id="btnBright" type="button">Bright</button>
+    <button id="btnFull" type="button">Full screen</button>
+  </div>
+  <div id="menuBack" hidden><div id="menu" role="dialog" aria-label="Choose camera"></div></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var app = $('app'), stage = $('stage'), canvas = $('video'), ctx = canvas.getContext('2d');
+  var badge = $('badge'), badgeText = $('badgeText'), messageEl = $('message'), statusEl = $('status');
+  var btnCamera = $('btnCamera'), btnTorch = $('btnTorch'), btnBright = $('btnBright');
+  var btnFull = $('btnFull'), btnExitFs = $('btnExitFs');
+  var menuBack = $('menuBack'), menu = $('menu');
+
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var STALL_MS = 2500;
+  var MAX_FRAME_BYTES = 8 * 1024 * 1024;
+  var MAX_ZOOM = 8;
+  var DOUBLE_TAP_ZOOM = 2.5;
+
+  var st = {
+    connected: false, connectedAt: 0, lastFrameAt: 0, cameraTime: 0,
+    hasTorch: false, torchOn: false, hasFrame: false
+  };
+  var stopped = false;
+  var abortCtl = null;
+
+  function now() { return performance.now(); }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function clock(ms) {
+    var d = ms > 0 ? new Date(ms) : new Date();
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // ------------------------------------------------------------------ messages
+
+  function setMessage(text) {
+    messageEl.textContent = text || '';
+    messageEl.hidden = !text;
+  }
+
+  var statusTimer = 0;
+  function setStatus(text, autoHideMs) {
+    clearTimeout(statusTimer);
+    if (!text) { statusEl.hidden = true; return; }
+    statusEl.textContent = text;
+    statusEl.hidden = false;
+    if (autoHideMs) {
+      statusTimer = setTimeout(function () { statusEl.hidden = true; }, autoHideMs);
+    }
+  }
+
+  // ------------------------------------------------------------------ live badge
+
+  /*
+   * Proof that the stream is alive. It is not part of the zoomed picture, so it is always visible:
+   * green with the camera phone's capture time while frames arrive, amber while connecting,
+   * red when no frame has arrived for a few seconds.
+   */
+  function updateBadge() {
+    if (!token) { badge.hidden = true; return; }
+    badge.hidden = false;
+    var t = now();
+    var haveFrame = st.connected && st.lastFrameAt > 0 && st.lastFrameAt >= st.connectedAt;
+    var cls, text;
+    if (!st.connected) {
+      cls = 'wait'; text = 'CONNECTING';
+    } else if (haveFrame && t - st.lastFrameAt <= STALL_MS) {
+      cls = 'live'; text = 'LIVE  ' + clock(st.cameraTime);
+    } else if (!haveFrame && t - st.connectedAt <= STALL_MS) {
+      cls = 'wait'; text = 'CONNECTING';
+    } else {
+      cls = 'stalled';
+      text = 'NO VIDEO ' + Math.floor((t - (haveFrame ? st.lastFrameAt : st.connectedAt)) / 1000) + 's';
+    }
+    if (badge.className !== cls) { badge.className = cls; }
+    if (badgeText.textContent !== text) { badgeText.textContent = text; }
+  }
+  setInterval(updateBadge, 500);
+
+  // ------------------------------------------------------------------ stream
+
+  function indexOfHeaderEnd(buf, from, to) {
+    for (var i = from; i + 3 < to; i++) {
+      if (buf[i] === 13 && buf[i + 1] === 10 && buf[i + 2] === 13 && buf[i + 3] === 10) { return i; }
+    }
+    return -1;
+  }
+
+  function asciiString(buf, from, to) {
+    var s = '';
+    for (var i = from; i < to; i++) { s += String.fromCharCode(buf[i]); }
+    return s;
+  }
+
+  async function readFrames(reader) {
+    var buf = new Uint8Array(512 * 1024);
+    var len = 0;
+    var pos = 0;
+    while (!stopped) {
+      var chunk = await reader.read();
+      if (chunk.done) { return; }
+      var data = chunk.value;
+      if (len + data.length > buf.length) {
+        var bigger = new Uint8Array(Math.max(buf.length * 2, len + data.length));
+        bigger.set(buf.subarray(0, len));
+        buf = bigger;
+      }
+      buf.set(data, len);
+      len += data.length;
+
+      for (;;) {
+        // skip keep-alive line breaks between frames
+        while (pos < len && (buf[pos] === 13 || buf[pos] === 10)) { pos++; }
+        var headerEnd = indexOfHeaderEnd(buf, pos, len);
+        if (headerEnd < 0) {
+          if (len - pos > 8192) { throw new Error('Bad stream'); }
+          break;
+        }
+        var length = -1, cameraTime = 0;
+        var lines = asciiString(buf, pos, headerEnd).split('\r\n');
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].toLowerCase();
+          if (line.indexOf('content-length:') === 0) {
+            length = parseInt(line.substring(15), 10);
+          } else if (line.indexOf('x-frame-time:') === 0) {
+            cameraTime = parseInt(line.substring(13), 10) || 0;
+          }
+        }
+        if (!(length > 0) || length > MAX_FRAME_BYTES) { throw new Error('Bad frame'); }
+        var bodyStart = headerEnd + 4;
+        if (bodyStart + length > len) { break; } // wait for the rest of the picture
+        showFrame(buf.slice(bodyStart, bodyStart + length), cameraTime);
+        pos = bodyStart + length;
+      }
+      if (pos > 0) {
+        buf.copyWithin(0, pos, len);
+        len -= pos;
+        pos = 0;
+      }
+    }
+  }
+
+  async function connectLoop() {
+    var backoff = 1000;
+    while (!stopped) {
+      var reason = 'Connection closed';
+      var wasConnected = false;
+      try {
+        abortCtl = new AbortController();
+        setStatus('Connecting...');
+        var resp = await fetch('/stream?t=' + encodeURIComponent(token),
+            { signal: abortCtl.signal, cache: 'no-store' });
+        if (resp.status === 403) { throw new Error('Wrong pairing code'); }
+        if (!resp.ok) { throw new Error('Camera replied ' + resp.status); }
+        st.connected = true;
+        st.connectedAt = now();
+        wasConnected = true;
+        backoff = 1000;
+        setStatus('Connected', 2500);
+        updateButtons();
+        fetchStatus(0);
+        await readFrames(resp.body.getReader());
+      } catch (e) {
+        if (stopped) { return; }
+        reason = wasConnected ? (e && e.message ? e.message : 'Connection lost')
+            : 'Cannot reach camera (' + (e && e.message ? e.message : 'no answer') + ')';
+      }
+      st.connected = false;
+      st.hasTorch = false;
+      st.torchOn = false;
+      updateButtons();
+      updateBadge();
+      if (!st.hasFrame) { setMessage(reason + '\nRetrying...'); }
+      setStatus(reason + '. Retrying...');
+      await sleep(backoff);
+      backoff = Math.min(backoff * 2, 5000);
+    }
+  }
+
+  // ------------------------------------------------------------------ picture
+
+  var decoding = false;
+  var nextJpeg = null;
+
+  function showFrame(jpeg, cameraTime) {
+    nextJpeg = { bytes: jpeg, time: cameraTime };
+    if (!decoding) { decodeLoop(); }
+  }
+
+  async function toDrawable(bytes) {
+    var blob = new Blob([bytes], { type: 'image/jpeg' });
+    if (window.createImageBitmap) { return createImageBitmap(blob); }
+    var url = URL.createObjectURL(blob);
+    try {
+      var img = new Image();
+      img.src = url;
+      await img.decode();
+      return img;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function decodeLoop() {
+    decoding = true;
+    while (nextJpeg) {          // only the newest frame is ever decoded: no backlog
+      var f = nextJpeg;
+      nextJpeg = null;
+      try {
+        var pic = await toDrawable(f.bytes);
+        var w = pic.width, h = pic.height;
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+          applyZoom();          // picture shape changed (for example another camera)
+        }
+        ctx.drawImage(pic, 0, 0);
+        if (pic.close) { pic.close(); }
+        st.lastFrameAt = now();
+        st.cameraTime = f.time;
+        if (!st.hasFrame) { st.hasFrame = true; setMessage(''); }
+        updateBadge();
+      } catch (e) {
+        // a damaged frame is skipped
+      }
+    }
+    decoding = false;
+  }
+
+  // ------------------------------------------------------------------ zoom and pan
+
+  var zoom = { s: 1, x: 0, y: 0 };
+
+  function fitSize() {
+    var cw = stage.clientWidth, ch = stage.clientHeight;
+    var f = Math.min(cw / canvas.width, ch / canvas.height);
+    return { w: canvas.width * f, h: canvas.height * f };
+  }
+
+  function applyZoom() {
+    var cw = stage.clientWidth, ch = stage.clientHeight, fs = fitSize();
+    var mx = Math.max(0, (fs.w * zoom.s - cw) / 2);
+    var my = Math.max(0, (fs.h * zoom.s - ch) / 2);
+    zoom.x = clamp(zoom.x, -mx, mx);
+    zoom.y = clamp(zoom.y, -my, my);
+    canvas.style.transform = 'translate(' + zoom.x + 'px,' + zoom.y + 'px) scale(' + zoom.s + ')';
+  }
+
+  // (px, py) is measured from the middle of the stage, like the picture's own centre
+  function zoomAt(newScale, px, py) {
+    var s = clamp(newScale, 1, MAX_ZOOM);
+    var ratio = s / zoom.s;
+    zoom.x = px - (px - zoom.x) * ratio;
+    zoom.y = py - (py - zoom.y) * ratio;
+    zoom.s = s;
+    if (s < 1.05) { zoom.s = 1; zoom.x = 0; zoom.y = 0; }
+    applyZoom();
+  }
+
+  function resetZoom() { zoom.s = 1; zoom.x = 0; zoom.y = 0; applyZoom(); }
+
+  function stagePoint(clientX, clientY) {
+    var r = stage.getBoundingClientRect();
+    return { x: clientX - r.left - r.width / 2, y: clientY - r.top - r.height / 2 };
+  }
+
+  stage.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var delta = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    var p = stagePoint(e.clientX, e.clientY);
+    zoomAt(zoom.s * Math.exp(-delta * 0.0018), p.x, p.y);
+  }, { passive: false });
+
+  var pointers = new Map();
+  var tapStart = null;
+  var lastTap = { t: 0, x: 0, y: 0 };
+
+  function pinchState() {
+    var pts = Array.from(pointers.values());
+    var dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+    return { dist: Math.hypot(dx, dy), cx: (pts[0].x + pts[1].x) / 2, cy: (pts[0].y + pts[1].y) / 2 };
+  }
+
+  stage.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('button')) { return; }
+    try { stage.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    tapStart = pointers.size === 1 ? { t: now(), x: e.clientX, y: e.clientY } : null;
+  });
+
+  stage.addEventListener('pointermove', function (e) {
+    var prev = pointers.get(e.pointerId);
+    if (!prev) { return; }
+    if (pointers.size === 2) {
+      var before = pinchState();
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      var after = pinchState();
+      var p = stagePoint(after.cx, after.cy);
+      if (before.dist > 0) { zoomAt(zoom.s * after.dist / before.dist, p.x, p.y); }
+      zoom.x += after.cx - before.cx;
+      zoom.y += after.cy - before.cy;
+      applyZoom();
+      tapStart = null;
+    } else {
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (zoom.s > 1) {
+        zoom.x += e.clientX - prev.x;
+        zoom.y += e.clientY - prev.y;
+        applyZoom();
+      }
+      if (tapStart && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) > 10) { tapStart = null; }
+    }
+  });
+
+  function endPointer(e) {
+    if (!pointers.has(e.pointerId)) { return; }
+    pointers.delete(e.pointerId);
+    if (tapStart && e.type === 'pointerup' && now() - tapStart.t < 350) {
+      // double tap / double click: zoom in, or back to normal size
+      if (now() - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
+        if (zoom.s > 1) { resetZoom(); } else { var p = stagePoint(e.clientX, e.clientY); zoomAt(DOUBLE_TAP_ZOOM, p.x, p.y); }
+        lastTap.t = 0;
+      } else {
+        lastTap = { t: now(), x: e.clientX, y: e.clientY };
+      }
+    }
+    tapStart = null;
+  }
+  stage.addEventListener('pointerup', endPointer);
+  stage.addEventListener('pointercancel', endPointer);
+  window.addEventListener('resize', applyZoom);
+
+  // ------------------------------------------------------------------ camera controls
+
+  function api(name, arg) {
+    var url = '/cmd?t=' + encodeURIComponent(token) + '&name=' + encodeURIComponent(name)
+        + (arg != null ? '&arg=' + encodeURIComponent(arg) : '');
+    return fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) { throw new Error('Camera replied ' + r.status); }
+      return r.text();
+    });
+  }
+
+  function parseStatus(text) {
+    var info = { torch: false, hasTorch: false, current: null, cameras: [] };
+    text.split('\n').forEach(function (raw) {
+      var line = raw.trim();
+      if (line === 'torch=1') { info.torch = true; }
+      else if (line === 'hasTorch=1') { info.hasTorch = true; }
+      else if (line.indexOf('current=') === 0) { info.current = line.substring(8) || null; }
+      else if (line.indexOf('camera=') === 0) {
+        var rest = line.substring(7), bar = rest.indexOf('|');
+        if (bar > 0) { info.cameras.push({ id: rest.substring(0, bar), label: rest.substring(bar + 1) }); }
+      }
+    });
+    return info;
+  }
+
+  function fetchStatus(delayMs) {
+    setTimeout(function () {
+      api('status').then(function (text) {
+        var info = parseStatus(text);
+        st.torchOn = info.torch;
+        st.hasTorch = info.hasTorch;
+        updateButtons();
+      }).catch(function () { /* the next request will try again */ });
+    }, delayMs);
+  }
+
+  function runCommand(name, arg) {
+    api(name, arg).catch(function () { setStatus('Could not reach the camera.', 3000); });
+    fetchStatus(900); // the camera applies the change a moment later
+  }
+
+  function updateButtons() {
+    btnCamera.disabled = !st.connected;
+    btnTorch.disabled = !(st.connected && st.hasTorch);
+    btnTorch.textContent = st.torchOn ? 'Torch off' : 'Torch on';
+  }
+
+  btnTorch.addEventListener('click', function () { runCommand('torch', 'toggle'); });
+
+  function closeMenu() { menuBack.hidden = true; }
+  menuBack.addEventListener('click', function (e) { if (e.target === menuBack) { closeMenu(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeMenu(); } });
+
+  btnCamera.addEventListener('click', function () {
+    api('status').then(function (text) {
+      var info = parseStatus(text);
+      if (info.cameras.length === 0) { setStatus('The camera phone reports no cameras.', 3000); return; }
+      menu.textContent = '';
+      var title = document.createElement('h2');
+      title.textContent = 'Choose camera';
+      menu.appendChild(title);
+      info.cameras.forEach(function (c) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = c.label;
+        if (c.id === info.current) { b.className = 'current'; }
+        b.addEventListener('click', function () { closeMenu(); runCommand('select', c.id); });
+        menu.appendChild(b);
+      });
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', closeMenu);
+      menu.appendChild(cancel);
+      menuBack.hidden = false;
+    }).catch(function () { setStatus('Could not reach the camera.', 3000); });
+  });
+
+  // ------------------------------------------------------------------ brightness, full screen
+
+  var bright = false;
+  try { bright = localStorage.getItem('bzview.bright') === '1'; } catch (e) { /* storage unavailable */ }
+  function applyBright() {
+    canvas.style.filter = bright ? 'brightness(1.4)' : '';
+    btnBright.textContent = bright ? 'Normal' : 'Bright';
+  }
+  btnBright.addEventListener('click', function () {
+    bright = !bright;
+    try { localStorage.setItem('bzview.bright', bright ? '1' : '0'); } catch (e) { /* ignore */ }
+    applyBright();
+  });
+  applyBright();
+
+  function fullscreenElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
+  var canFull = !!(app.requestFullscreen || app.webkitRequestFullscreen);
+  btnFull.hidden = !canFull;
+  function toggleFullscreen() {
+    if (fullscreenElement()) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else if (canFull) {
+      (app.requestFullscreen || app.webkitRequestFullscreen).call(app);
+    }
+  }
+  btnFull.addEventListener('click', toggleFullscreen);
+  btnExitFs.addEventListener('click', toggleFullscreen);
+  function onFullscreenChange() {
+    app.classList.toggle('fs', !!fullscreenElement());
+    setTimeout(applyZoom, 100);
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+  // ------------------------------------------------------------------ start
+
+  window.addEventListener('pagehide', function () {
+    stopped = true;
+    if (abortCtl) { abortCtl.abort(); }
+  });
+
+  if (!token) {
+    setMessage('Open the web address shown on the camera phone.\nIt ends with ?t= and the pairing code.');
+    updateBadge();
+  } else {
+    setMessage('Connecting...');
+    connectLoop();
+  }
+})();
+</script>
+</body>
+</html>

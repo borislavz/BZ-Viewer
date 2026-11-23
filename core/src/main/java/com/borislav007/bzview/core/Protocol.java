@@ -19,6 +19,9 @@ public final class Protocol {
     /** Per-frame header: the camera phone's clock (epoch milliseconds) when the frame was captured. */
     public static final String HEADER_FRAME_TIME = "X-Frame-Time";
     public static final String PATH_COMMAND = "/cmd";
+    /** The web viewer page (served at both "/" and "/view"), opened with ?t=TOKEN in any browser. */
+    public static final String PATH_ROOT = "/";
+    public static final String PATH_VIEWER = "/view";
 
     public static final String CMD_STATUS = "status";
     /** Select a camera by id: /cmd?...&name=select&arg=ID */

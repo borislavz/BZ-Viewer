@@ -5,6 +5,9 @@
     <string name="stop">Stop</string>
     <string name="camera_button">Camera…</string>
     <string name="exit">Exit</string>
+    <string name="share_web_link">Share web link</string>
+    <string name="web_link_hint">Or open this in any browser on the same Wi-Fi:</string>
+    <string name="share_web_link_title">Share web viewer link</string>
     <string name="choose_camera">Choose camera</string>
     <string name="preview">Camera preview</string>
     <string name="pairing_qr">Pairing QR code</string>
